@@ -10,7 +10,7 @@ docker compose up
 
 ## What it does
 
-PubSave connects to the [PubMed E-utilities API](https://www.ncbi.nlm.nih.gov/books/NBK25501/) to pull paper metadata — title, authors, abstract, journal, DOI, and publication date — then stores it in a PostgreSQL database with full tagging and search support.
+PubSave connects to the [PubMed E-utilities API](https://www.ncbi.nlm.nih.gov/books/NBK25501/) to pull paper metadata : title, authors, abstract, journal, DOI, and publication date, then stores it in a PostgreSQL database with full tagging and search support.
 
 ### API endpoints
 
@@ -124,13 +124,13 @@ src/
 
 ### Design decisions
 
-- **Repository pattern** — database queries are isolated from business logic
-- **Service layer** — orchestrates repositories and external clients
-- **Dependency injection** — FastAPI's `Depends()` wires everything together
-- **Immutable schemas** — all Pydantic models use `frozen=True`
-- **Async everywhere** — SQLAlchemy 2.0 async with asyncpg driver
-- **Multi-stage Docker build** — smaller production image
-- **Fail-fast configuration** — missing env vars crash on startup, not at runtime
+- **Repository pattern** : database queries are isolated from business logic
+- **Service layer** : orchestrates repositories and external clients
+- **Dependency injection** : FastAPI's `Depends()` wires everything together
+- **Immutable schemas** : all Pydantic models use `frozen=True`
+- **Async everywhere** : SQLAlchemy 2.0 async with asyncpg driver
+- **Multi-stage Docker build** : smaller production image
+- **Fail-fast configuration** : missing env vars crash on startup, not at runtime
 
 ## Testing
 
@@ -181,3 +181,5 @@ A code review caught three critical issues: XML External Entity (XXE) vulnerabil
 
 ### Pydantic as a validation boundary
 Frozen Pydantic models with field validators act as a trust boundary between external data and internal logic. Tag normalization, PMID format checks, and ORM-to-response conversion all happen at the schema level — not scattered through router code.
+
+Thank you for reading. - Dongkyu
