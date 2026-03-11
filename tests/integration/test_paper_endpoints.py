@@ -1,0 +1,143 @@
+import pytest
+from httpx import AsyncClient
+
+from tests.factories import make_paper_data_unique
+
+
+class TestCreatePaperEndpoint:
+    async def test_create_paper(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        response = await client.post("/api/v1/papers", json=data)
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["pmid"] == data["pmid"]
+        assert body["data"]["title"] == data["title"]
+
+    async def test_create_duplicate_returns_409(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        await client.post("/api/v1/papers", json=data)
+        response = await client.post("/api/v1/papers", json=data)
+
+        assert response.status_code == 409
+        assert response.json()["success"] is False
+
+    async def test_create_invalid_returns_422(self, client: AsyncClient):
+        response = await client.post("/api/v1/papers", json={"title": "No PMID"})
+
+        assert response.status_code == 422
+
+
+class TestGetPaperEndpoint:
+    async def test_get_paper(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+
+        response = await client.get(f"/api/v1/papers/{paper_id}")
+
+        assert response.status_code == 200
+        assert response.json()["data"]["pmid"] == data["pmid"]
+
+    async def test_get_not_found_returns_404(self, client: AsyncClient):
+        import uuid
+
+        response = await client.get(f"/api/v1/papers/{uuid.uuid4()}")
+        assert response.status_code == 404
+
+
+class TestListPapersEndpoint:
+    async def test_list_papers(self, client: AsyncClient):
+        await client.post("/api/v1/papers", json=make_paper_data_unique())
+
+        response = await client.get("/api/v1/papers")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert isinstance(body["data"], list)
+        assert body["meta"]["total"] >= 1
+
+
+class TestUpdatePaperEndpoint:
+    async def test_update_paper(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+
+        response = await client.put(
+            f"/api/v1/papers/{paper_id}", json={"title": "Updated Title"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["title"] == "Updated Title"
+
+
+class TestDeletePaperEndpoint:
+    async def test_delete_paper(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+
+        response = await client.delete(f"/api/v1/papers/{paper_id}")
+        assert response.status_code == 200
+
+        get_response = await client.get(f"/api/v1/papers/{paper_id}")
+        assert get_response.status_code == 404
+
+
+class TestTagEndpoints:
+    async def test_add_and_list_tags(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+
+        tag_resp = await client.post(
+            f"/api/v1/papers/{paper_id}/tags", json={"tags": ["ml", "genomics"]}
+        )
+
+        assert tag_resp.status_code == 200
+        assert "ml" in tag_resp.json()["data"]["tags"]
+        assert "genomics" in tag_resp.json()["data"]["tags"]
+
+    async def test_remove_tag(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+
+        await client.post(f"/api/v1/papers/{paper_id}/tags", json={"tags": ["ml", "bio"]})
+
+        remove_resp = await client.delete(f"/api/v1/papers/{paper_id}/tags/ml")
+        assert remove_resp.status_code == 200
+        assert "ml" not in remove_resp.json()["data"]["tags"]
+        assert "bio" in remove_resp.json()["data"]["tags"]
+
+    async def test_list_all_tags(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+
+        await client.post(
+            f"/api/v1/papers/{paper_id}/tags", json={"tags": ["endpoint-test-tag"]}
+        )
+
+        response = await client.get("/api/v1/tags")
+        assert response.status_code == 200
+        body = response.json()
+        tag_names = [t["name"] for t in body["data"]]
+        assert "endpoint-test-tag" in tag_names
+        assert body["meta"]["total"] >= 1
+        assert body["meta"]["page"] == 1
+
+
+class TestSearchEndpoint:
+    async def test_search_by_title(self, client: AsyncClient):
+        data = make_paper_data_unique(title="Unique Genomics Alpha Study")
+        await client.post("/api/v1/papers", json=data)
+
+        response = await client.get("/api/v1/papers/search", params={"q": "Genomics Alpha"})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["meta"]["total"] >= 1
