@@ -1,4 +1,5 @@
 import logging
+import re
 from uuid import UUID
 
 from sqlalchemy import String, cast, func, select
@@ -10,6 +11,10 @@ from src.papers.models import Paper, Tag, paper_tags
 from src.papers.schemas import PaperCreate, PaperSearchParams, PaperUpdate
 
 logger = logging.getLogger(__name__)
+
+def _escape_like(value: str) -> str:
+    return re.sub(r"([%_\\])", r"\\\1", value)
+
 
 _ALLOWED_UPDATE_FIELDS = frozenset(
     {"pmid", "title", "authors", "abstract", "journal", "publication_date", "doi"}
@@ -94,15 +99,17 @@ class PaperRepository:
         stmt = select(Paper)
 
         if params.q:
-            pattern = f"%{params.q}%"
+            escaped = _escape_like(params.q)
+            pattern = f"%{escaped}%"
             stmt = stmt.where(Paper.title.ilike(pattern) | Paper.abstract.ilike(pattern))
 
         if params.pmid:
             stmt = stmt.where(Paper.pmid == params.pmid)
 
         if params.author:
+            escaped = _escape_like(params.author)
             stmt = stmt.where(
-                cast(Paper.authors, String).ilike(f"%{params.author}%")
+                cast(Paper.authors, String).ilike(f"%{escaped}%")
             )
 
         if params.tag:
