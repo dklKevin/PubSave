@@ -148,12 +148,12 @@ src/
 
 ## Testing
 
-92 tests across two layers:
+95 tests across two layers:
 
 | Layer | Tests | What's covered |
 |-------|------:|----------------|
 | Unit | 51 | Schema validation, service logic, PubMed XML parsing, CLI helpers, compact response |
-| Integration | 41 | Repository queries, API endpoints, compact param, tag operations (real Postgres) |
+| Integration | 44 | Repository queries, API endpoints, compact param, tag operations, ID prefix resolution (real Postgres) |
 
 Integration tests run against a real PostgreSQL instance via [testcontainers](https://testcontainers-python.readthedocs.io/) -- no SQLite mocks.
 
