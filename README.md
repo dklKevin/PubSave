@@ -1,4 +1,4 @@
-# PubSave
+# PubSave v0.1.0
 
 A personal API for bookmarking and organizing research papers from PubMed. Give it a PMID, it fetches the metadata, saves it to Postgres, and lets you tag and search through your collection.
 
