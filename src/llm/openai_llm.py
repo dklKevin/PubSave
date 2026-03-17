@@ -16,6 +16,10 @@ class OpenAILLM:
         self._client = AsyncOpenAI(api_key=api_key)
         self._model = model
 
+    @property
+    def model(self) -> str:
+        return self._model
+
     async def generate(self, system: str, user: str) -> str:
         response = await self._client.chat.completions.create(
             model=self._model,

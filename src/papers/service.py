@@ -148,7 +148,7 @@ class PaperService:
         return {
             "answer": answer,
             "citations": citations,
-            "model": "gpt-4o-mini",
+            "model": self._llm_client.model,
             "took_ms": elapsed_ms,
         }
 

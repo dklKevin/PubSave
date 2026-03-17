@@ -53,6 +53,7 @@ def embedder():
 @pytest.fixture
 def llm_client():
     mock = AsyncMock()
+    mock.model = "gpt-4o-mini"
     mock.generate.return_value = "Based on the papers, gene therapy shows promise [PMID:111]."
     return mock
 
@@ -346,6 +347,7 @@ class TestAsk:
         assert len(result["citations"]) == 2
         assert result["citations"][0]["pmid"] == "111"
         assert result["citations"][0]["score"] == 0.92
+        assert result["model"] == "gpt-4o-mini"
         assert result["took_ms"] >= 0
 
     async def test_ask_with_no_matching_papers(
