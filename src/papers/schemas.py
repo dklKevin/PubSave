@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AuthorSchema(BaseModel):
@@ -45,6 +45,19 @@ class _TimestampMixin(BaseModel):
         return str(v)
 
 
+def _extract_tag_names(v: list) -> list[str]:
+    if not v:
+        return []
+    first = v[0]
+    if isinstance(first, str):
+        return v
+    if hasattr(first, "name"):
+        return [t.name for t in v]
+    if isinstance(first, dict) and "name" in first:
+        return [t["name"] for t in v]
+    return v
+
+
 class PaperResponse(_TimestampMixin):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
@@ -63,16 +76,68 @@ class PaperResponse(_TimestampMixin):
     @field_validator("tags", mode="before")
     @classmethod
     def extract_tag_names(cls, v: list) -> list[str]:
-        if not v:
-            return []
-        first = v[0]
-        if isinstance(first, str):
-            return v
-        if hasattr(first, "name"):
-            return [t.name for t in v]
-        if isinstance(first, dict) and "name" in first:
-            return [t["name"] for t in v]
+        return _extract_tag_names(v)
+
+
+def _format_author(a) -> str:
+    if hasattr(a, "last_name"):
+        last, first = a.last_name, a.first_name
+    elif isinstance(a, dict):
+        last, first = a.get("last_name", ""), a.get("first_name", "")
+    else:
+        return str(a)
+    initial = first[0] if first else ""
+    return f"{last} {initial}" if initial else last
+
+
+def _format_authors_short(authors: list) -> str:
+    if not authors:
+        return ""
+    if len(authors) <= 2:
+        return ", ".join(_format_author(a) for a in authors)
+    return f"{_format_author(authors[0])}, {_format_author(authors[1])} et al."
+
+
+class PaperCompactResponse(BaseModel):
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    id: UUID
+    pmid: str
+    title: str
+    authors_short: str = ""
+    journal: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def compute_authors_short(cls, data):
+        if hasattr(data, "__dict__"):
+            authors = getattr(data, "authors", []) or []
+            obj = {
+                "id": data.id,
+                "pmid": data.pmid,
+                "title": data.title,
+                "authors_short": _format_authors_short(authors),
+                "journal": data.journal,
+                "tags": data.tags,
+            }
+            return obj
+        if isinstance(data, dict) and "authors_short" not in data:
+            authors = data.get("authors", []) or []
+            data["authors_short"] = _format_authors_short(authors)
+        return data
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def truncate_title(cls, v: str) -> str:
+        if len(v) > 120:
+            return v[:117] + "..."
         return v
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def extract_tag_names(cls, v: list) -> list[str]:
+        return _extract_tag_names(v)
 
 
 class TagResponse(_TimestampMixin):
@@ -101,9 +166,9 @@ class TagRequest(BaseModel):
 class PaperSearchParams(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    q: str | None = None
-    author: str | None = None
-    tag: str | None = None
+    q: str | None = Field(default=None, max_length=500)
+    author: str | None = Field(default=None, max_length=200)
+    tag: str | None = Field(default=None, max_length=100)
     pmid: str | None = None
     page: int = Field(default=1, ge=1)
     limit: int = Field(default=20, ge=1, le=100)

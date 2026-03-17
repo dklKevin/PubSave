@@ -8,6 +8,7 @@ from src.dependencies import get_paper_service, get_session
 from src.papers.schemas import (
     ApiResponse,
     PaginationMeta,
+    PaperCompactResponse,
     PaperCreate,
     PaperResponse,
     PaperSearchParams,
@@ -21,7 +22,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/papers", tags=["papers"])
 
 
-def _paper_to_response(paper) -> PaperResponse:
+def _paper_to_response(paper, compact: bool = False):
+    if compact:
+        return PaperCompactResponse.model_validate(paper)
     return PaperResponse.model_validate(paper)
 
 
@@ -55,6 +58,7 @@ async def search_papers(
     pmid: str | None = None,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
+    compact: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
     service: PaperService = Depends(get_paper_service),
 ):
@@ -62,7 +66,7 @@ async def search_papers(
     papers, total = await service.search_papers(session, params)
     return ApiResponse(
         success=True,
-        data=[_paper_to_response(p) for p in papers],
+        data=[_paper_to_response(p, compact=compact) for p in papers],
         meta=PaginationMeta(total=total, page=page, limit=limit),
     )
 
@@ -70,24 +74,26 @@ async def search_papers(
 @router.get("/{paper_id}")
 async def get_paper(
     paper_id: UUID,
+    compact: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
     service: PaperService = Depends(get_paper_service),
 ):
     paper = await service.get_paper(session, paper_id)
-    return ApiResponse(success=True, data=_paper_to_response(paper))
+    return ApiResponse(success=True, data=_paper_to_response(paper, compact=compact))
 
 
 @router.get("")
 async def list_papers(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
+    compact: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
     service: PaperService = Depends(get_paper_service),
 ):
     papers, total = await service.list_papers(session, page=page, limit=limit)
     return ApiResponse(
         success=True,
-        data=[_paper_to_response(p) for p in papers],
+        data=[_paper_to_response(p, compact=compact) for p in papers],
         meta=PaginationMeta(total=total, page=page, limit=limit),
     )
 

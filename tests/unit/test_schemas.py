@@ -1,7 +1,14 @@
 import pytest
 from pydantic import ValidationError
 
-from src.papers.schemas import AuthorSchema, PaperCreate, PaperSearchParams, PaperUpdate, TagRequest
+from src.papers.schemas import (
+    AuthorSchema,
+    PaperCompactResponse,
+    PaperCreate,
+    PaperSearchParams,
+    PaperUpdate,
+    TagRequest,
+)
 
 
 class TestAuthorSchema:
@@ -126,3 +133,100 @@ class TestPaperSearchParams:
     def test_page_min(self):
         with pytest.raises(ValidationError):
             PaperSearchParams(page=0)
+
+    def test_q_max_length(self):
+        with pytest.raises(ValidationError):
+            PaperSearchParams(q="a" * 501)
+
+    def test_author_max_length(self):
+        with pytest.raises(ValidationError):
+            PaperSearchParams(author="a" * 201)
+
+    def test_tag_max_length(self):
+        with pytest.raises(ValidationError):
+            PaperSearchParams(tag="a" * 101)
+
+
+class TestPaperCompactResponse:
+    def _make_data(self, **overrides):
+        base = {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "pmid": "12345678",
+            "title": "A Short Title",
+            "authors": [],
+            "tags": [],
+            "journal": "Nature",
+        }
+        base.update(overrides)
+        return base
+
+    def test_basic_compact_response(self):
+        data = self._make_data(
+            authors=[{"last_name": "Zhang", "first_name": "Li"}],
+        )
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.pmid == "12345678"
+        assert resp.title == "A Short Title"
+        assert resp.authors_short == "Zhang L"
+
+    def test_title_truncation_at_120(self):
+        long_title = "A" * 130
+        data = self._make_data(title=long_title)
+        resp = PaperCompactResponse.model_validate(data)
+        assert len(resp.title) == 120
+        assert resp.title.endswith("...")
+
+    def test_title_not_truncated_under_120(self):
+        title = "A" * 120
+        data = self._make_data(title=title)
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.title == title
+
+    def test_zero_authors(self):
+        data = self._make_data(authors=[])
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.authors_short == ""
+
+    def test_one_author(self):
+        data = self._make_data(
+            authors=[{"last_name": "Zhang", "first_name": "Li"}],
+        )
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.authors_short == "Zhang L"
+
+    def test_two_authors(self):
+        data = self._make_data(
+            authors=[
+                {"last_name": "Zhang", "first_name": "Li"},
+                {"last_name": "Chen", "first_name": "Wei"},
+            ],
+        )
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.authors_short == "Zhang L, Chen W"
+
+    def test_three_plus_authors(self):
+        data = self._make_data(
+            authors=[
+                {"last_name": "Zhang", "first_name": "Li"},
+                {"last_name": "Chen", "first_name": "Wei"},
+                {"last_name": "Park", "first_name": "Soo"},
+            ],
+        )
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.authors_short == "Zhang L, Chen W et al."
+
+    def test_tags_from_strings(self):
+        data = self._make_data(tags=["ml", "genomics"])
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.tags == ["ml", "genomics"]
+
+    def test_tags_from_dicts(self):
+        data = self._make_data(tags=[{"name": "ml"}, {"name": "genomics"}])
+        resp = PaperCompactResponse.model_validate(data)
+        assert resp.tags == ["ml", "genomics"]
+
+    def test_compact_is_frozen(self):
+        data = self._make_data()
+        resp = PaperCompactResponse.model_validate(data)
+        with pytest.raises(ValidationError):
+            resp.title = "Modified"

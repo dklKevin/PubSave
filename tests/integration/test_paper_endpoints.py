@@ -141,3 +141,64 @@ class TestSearchEndpoint:
         assert response.status_code == 200
         body = response.json()
         assert body["meta"]["total"] >= 1
+
+
+class TestCompactQueryParam:
+    async def test_list_compact(self, client: AsyncClient):
+        data = make_paper_data_unique(
+            authors=[{"last_name": "Zhang", "first_name": "Li"}],
+        )
+        await client.post("/api/v1/papers", json=data)
+
+        response = await client.get("/api/v1/papers", params={"compact": "true"})
+
+        assert response.status_code == 200
+        body = response.json()
+        papers = body["data"]
+        assert len(papers) >= 1
+        paper = papers[0]
+        assert "authors_short" in paper
+        assert "abstract" not in paper
+        assert "created_at" not in paper
+        assert "updated_at" not in paper
+
+    async def test_get_compact(self, client: AsyncClient):
+        data = make_paper_data_unique(
+            authors=[
+                {"last_name": "Zhang", "first_name": "Li"},
+                {"last_name": "Chen", "first_name": "Wei"},
+                {"last_name": "Park", "first_name": "Soo"},
+            ],
+        )
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+
+        response = await client.get(f"/api/v1/papers/{paper_id}", params={"compact": "true"})
+
+        assert response.status_code == 200
+        paper = response.json()["data"]
+        assert "et al." in paper["authors_short"]
+
+    async def test_search_compact(self, client: AsyncClient):
+        data = make_paper_data_unique(title="Compact Search Test Unique XYZ")
+        await client.post("/api/v1/papers", json=data)
+
+        response = await client.get(
+            "/api/v1/papers/search", params={"q": "Compact Search Test", "compact": "true"}
+        )
+
+        assert response.status_code == 200
+        papers = response.json()["data"]
+        assert len(papers) >= 1
+        assert "authors_short" in papers[0]
+
+    async def test_list_without_compact_returns_full(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        await client.post("/api/v1/papers", json=data)
+
+        response = await client.get("/api/v1/papers")
+
+        assert response.status_code == 200
+        paper = response.json()["data"][0]
+        assert "authors" in paper
+        assert "created_at" in paper
