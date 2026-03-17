@@ -53,13 +53,19 @@ class PaperRepository:
         return result.scalar_one_or_none()
 
     async def find_all(
-        self, session: AsyncSession, page: int = 1, limit: int = 20
+        self, session: AsyncSession, page: int = 1, limit: int = 20, id_prefix: str | None = None
     ) -> tuple[list[Paper], int]:
-        count_stmt = select(func.count()).select_from(Paper)
+        stmt = select(Paper)
+
+        if id_prefix:
+            escaped = _escape_like(id_prefix)
+            stmt = stmt.where(cast(Paper.id, String).ilike(f"{escaped}%"))
+
+        count_stmt = select(func.count()).select_from(stmt.subquery())
         total = (await session.execute(count_stmt)).scalar_one()
 
         offset = (page - 1) * limit
-        stmt = select(Paper).order_by(Paper.created_at.desc()).offset(offset).limit(limit)
+        stmt = stmt.order_by(Paper.created_at.desc()).offset(offset).limit(limit)
         result = await session.execute(stmt)
         papers = list(result.scalars().all())
 

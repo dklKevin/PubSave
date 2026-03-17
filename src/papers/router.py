@@ -87,10 +87,11 @@ async def list_papers(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
     compact: bool = Query(default=False),
+    id_prefix: str | None = Query(default=None, min_length=6, max_length=36),
     session: AsyncSession = Depends(get_session),
     service: PaperService = Depends(get_paper_service),
 ):
-    papers, total = await service.list_papers(session, page=page, limit=limit)
+    papers, total = await service.list_papers(session, page=page, limit=limit, id_prefix=id_prefix)
     return ApiResponse(
         success=True,
         data=[_paper_to_response(p, compact=compact) for p in papers],

@@ -42,9 +42,9 @@ class PaperService:
         return paper
 
     async def list_papers(
-        self, session: AsyncSession, page: int = 1, limit: int = 20
+        self, session: AsyncSession, page: int = 1, limit: int = 20, id_prefix: str | None = None
     ) -> tuple[list[Paper], int]:
-        return await self._paper_repo.find_all(session, page=page, limit=limit)
+        return await self._paper_repo.find_all(session, page=page, limit=limit, id_prefix=id_prefix)
 
     async def update_paper(
         self, session: AsyncSession, paper_id: UUID, data: PaperUpdate

@@ -202,3 +202,34 @@ class TestCompactQueryParam:
         paper = response.json()["data"][0]
         assert "authors" in paper
         assert "created_at" in paper
+
+
+class TestIdPrefixResolution:
+    async def test_id_prefix_returns_matching_paper(self, client: AsyncClient):
+        data = make_paper_data_unique()
+        create_resp = await client.post("/api/v1/papers", json=data)
+        paper_id = create_resp.json()["data"]["id"]
+        prefix = paper_id[:8]
+
+        response = await client.get("/api/v1/papers", params={"id_prefix": prefix})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["meta"]["total"] >= 1
+        ids = [p["id"] for p in body["data"]]
+        assert any(pid.startswith(prefix) for pid in ids)
+
+    async def test_id_prefix_no_match_returns_empty(self, client: AsyncClient):
+        response = await client.get(
+            "/api/v1/papers", params={"id_prefix": "00000000"}
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["data"] == []
+        assert body["meta"]["total"] == 0
+
+    async def test_id_prefix_too_short_returns_422(self, client: AsyncClient):
+        response = await client.get("/api/v1/papers", params={"id_prefix": "abc"})
+
+        assert response.status_code == 422

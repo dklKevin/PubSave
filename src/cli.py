@@ -106,20 +106,22 @@ def _resolve_id(client: httpx.Client, base: str, short_id: str) -> str:
     if len(short_id) < _MIN_SHORT_ID:
         print(f"{RED}Error: ID prefix must be at least {_MIN_SHORT_ID} characters{RESET}")
         sys.exit(1)
-    resp = client.get(f"{base}/api/v1/papers", params={"compact": "true", "limit": 100})
+    resp = client.get(
+        f"{base}/api/v1/papers",
+        params={"compact": "true", "id_prefix": short_id, "limit": 10},
+    )
     _handle_error(resp)
     data = resp.json().get("data", [])
-    matches = [p for p in data if str(p.get("id", "")).startswith(short_id)]
-    if len(matches) == 0:
+    if len(data) == 0:
         print(f"{RED}Error: no paper found matching '{short_id}'{RESET}")
         sys.exit(1)
-    if len(matches) > 1:
-        print(f"{RED}Error: '{short_id}' matches {len(matches)} papers. Be more specific:{RESET}")
-        for m in matches:
+    if len(data) > 1:
+        print(f"{RED}Error: '{short_id}' matches {len(data)} papers. Be more specific:{RESET}")
+        for m in data:
             title = _sanitize(str(m.get("title", "")))[:60]
             print(f"  {str(m['id'])[:8]}  {title}")
         sys.exit(1)
-    return str(matches[0]["id"])
+    return str(data[0]["id"])
 
 
 def cmd_fetch(args, client: httpx.Client, base: str) -> None:
