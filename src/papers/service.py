@@ -1,16 +1,24 @@
 import logging
+import time
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.exceptions import DuplicatePmidError, PaperNotFoundError
 from src.llm.embedder import Embedder
+from src.llm.llm_client import LLMClient
 from src.papers.models import Paper
 from src.papers.pubmed_client import PubMedClient
 from src.papers.repository import PaperRepository, TagRepository
 from src.papers.schemas import PaperCreate, PaperSearchParams, PaperUpdate
 
 logger = logging.getLogger(__name__)
+
+RAG_SYSTEM_PROMPT = (
+    "Answer the question using only the provided paper abstracts. "
+    "Cite papers by their PMID in brackets like [PMID:12345678]. "
+    "If the papers don't contain enough information to answer, say so."
+)
 
 
 class PaperService:
@@ -20,11 +28,13 @@ class PaperService:
         tag_repo: TagRepository,
         pubmed_client: PubMedClient,
         embedder: Embedder | None = None,
+        llm_client: LLMClient | None = None,
     ) -> None:
         self._paper_repo = paper_repo
         self._tag_repo = tag_repo
         self._pubmed_client = pubmed_client
         self._embedder = embedder
+        self._llm_client = llm_client
 
     async def _embed_paper(self, session: AsyncSession, paper: Paper) -> None:
         """Embed a paper's abstract and store the vector.
@@ -102,6 +112,45 @@ class PaperService:
         """Embed the query and find papers by cosine similarity."""
         query_embedding = await self._embedder.embed(query)
         return await self._paper_repo.search_semantic(session, query_embedding, limit)
+
+    async def ask(
+        self, session: AsyncSession, question: str, top_k: int = 5
+    ) -> dict:
+        """Retrieve relevant papers and generate an answer using the LLM.
+
+        Returns a dict with answer, citations, model name, and elapsed time.
+        The system prompt lives here (not in the LLM client) because prompt
+        construction is business logic. The LLM client is pure transport.
+        """
+        start = time.monotonic()
+
+        query_embedding = await self._embedder.embed(question)
+        results = await self._paper_repo.search_semantic(session, query_embedding, top_k)
+
+        context_parts = []
+        citations = []
+        for paper, score in results:
+            context_parts.append(
+                f"[PMID:{paper.pmid}] {paper.title}\n{paper.abstract or ''}"
+            )
+            citations.append({
+                "paper_id": paper.id,
+                "pmid": paper.pmid,
+                "title": paper.title,
+                "score": round(score, 4),
+            })
+
+        user_message = f"Question: {question}\n\nPapers:\n" + "\n\n".join(context_parts)
+        answer = await self._llm_client.generate(system=RAG_SYSTEM_PROMPT, user=user_message)
+
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+
+        return {
+            "answer": answer,
+            "citations": citations,
+            "model": "gpt-4o-mini",
+            "took_ms": elapsed_ms,
+        }
 
     async def get_paper(self, session: AsyncSession, paper_id: UUID) -> Paper:
         paper = await self._paper_repo.find_by_id(session, paper_id)

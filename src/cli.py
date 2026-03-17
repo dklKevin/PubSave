@@ -249,6 +249,35 @@ def cmd_rm(args, client: httpx.Client, base: str) -> None:
     print(f"{GREEN}Deleted {paper_id[:8]}{RESET}")
 
 
+def cmd_ask(args, client: httpx.Client, base: str) -> None:
+    resp = client.post(
+        f"{base}/api/v1/ask",
+        json={"question": args.question, "top_k": args.top_k},
+        timeout=120,
+    )
+    _handle_error(resp)
+    body = resp.json()
+    if args.json_output:
+        print(json.dumps(body, indent=2))
+        return
+    data = body.get("data", {})
+    print(f"\n  {BOLD}Answer:{RESET}\n")
+    print(f"  {_sanitize(str(data.get('answer', '')))}\n")
+    citations = data.get("citations", [])
+    if citations:
+        print(f"  {BOLD}Citations:{RESET}\n")
+        for c in citations:
+            pmid = _sanitize(str(c.get("pmid", "")))
+            title = _sanitize(str(c.get("title", "")))
+            score = c.get("score", 0)
+            if len(title) > 60:
+                title = title[:57] + "..."
+            print(f"  [{pmid}] {title} (score: {score:.4f})")
+    took = data.get("took_ms", 0)
+    model = _sanitize(str(data.get("model", "")))
+    print(f"\n  {DIM}{model} | {took}ms{RESET}\n")
+
+
 def cmd_embed_all(args, client: httpx.Client, base: str) -> None:
     print(f"  {DIM}Embedding papers without vectors...{RESET}")
     resp = client.post(f"{base}/api/v1/papers/embed", timeout=300)
@@ -325,6 +354,11 @@ def main() -> None:
     p_rm = sub.add_parser("rm", help="delete a paper")
     p_rm.add_argument("id", help="paper ID")
 
+    # ask
+    p_ask = sub.add_parser("ask", help="ask a question over your saved papers")
+    p_ask.add_argument("question", help="your question")
+    p_ask.add_argument("--top-k", type=int, default=5, help="number of papers to use")
+
     # embed-all
     sub.add_parser("embed-all", help="backfill embeddings for papers without vectors")
 
@@ -348,6 +382,7 @@ def main() -> None:
         "tag": cmd_tag,
         "untag": cmd_untag,
         "rm": cmd_rm,
+        "ask": cmd_ask,
         "embed-all": cmd_embed_all,
         "tags": cmd_tags,
     }

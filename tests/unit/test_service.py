@@ -5,7 +5,7 @@ import pytest
 
 from src.exceptions import DuplicatePmidError, PaperNotFoundError
 from src.papers.schemas import AuthorSchema, PaperCreate, PaperSearchParams
-from src.papers.service import PaperService
+from src.papers.service import RAG_SYSTEM_PROMPT, PaperService
 
 EMBEDDING_DIM = 1536
 
@@ -51,6 +51,13 @@ def embedder():
 
 
 @pytest.fixture
+def llm_client():
+    mock = AsyncMock()
+    mock.generate.return_value = "Based on the papers, gene therapy shows promise [PMID:111]."
+    return mock
+
+
+@pytest.fixture
 def service(paper_repo, tag_repo, pubmed_client):
     return PaperService(
         paper_repo=paper_repo,
@@ -66,6 +73,17 @@ def service_with_embedder(paper_repo, tag_repo, pubmed_client, embedder):
         tag_repo=tag_repo,
         pubmed_client=pubmed_client,
         embedder=embedder,
+    )
+
+
+@pytest.fixture
+def service_with_rag(paper_repo, tag_repo, pubmed_client, embedder, llm_client):
+    return PaperService(
+        paper_repo=paper_repo,
+        tag_repo=tag_repo,
+        pubmed_client=pubmed_client,
+        embedder=embedder,
+        llm_client=llm_client,
     )
 
 
@@ -298,3 +316,57 @@ class TestSemanticSearch:
         results = await service_with_embedder.search_semantic(session, "obscure topic")
 
         assert results == []
+
+
+class TestAsk:
+    async def test_ask_returns_answer_with_citations(
+        self, service_with_rag, paper_repo, embedder, llm_client
+    ):
+        paper1 = _make_mock_paper(
+            pmid="111", title="Gene Therapy Review", abstract="Gene therapy overview."
+        )
+        paper2 = _make_mock_paper(
+            pmid="222", title="CRISPR Methods", abstract="CRISPR editing methods."
+        )
+        paper_repo.search_semantic.return_value = [(paper1, 0.92), (paper2, 0.85)]
+
+        session = AsyncMock()
+        result = await service_with_rag.ask(session, "What is gene therapy?", top_k=5)
+
+        embedder.embed.assert_called_once_with("What is gene therapy?")
+        llm_client.generate.assert_called_once()
+
+        call_args = llm_client.generate.call_args
+        assert call_args[1]["system"] == RAG_SYSTEM_PROMPT
+        assert "PMID:111" in call_args[1]["user"]
+        assert "PMID:222" in call_args[1]["user"]
+        assert "Gene therapy overview." in call_args[1]["user"]
+
+        assert result["answer"] == llm_client.generate.return_value
+        assert len(result["citations"]) == 2
+        assert result["citations"][0]["pmid"] == "111"
+        assert result["citations"][0]["score"] == 0.92
+        assert result["took_ms"] >= 0
+
+    async def test_ask_with_no_matching_papers(
+        self, service_with_rag, paper_repo, embedder, llm_client
+    ):
+        paper_repo.search_semantic.return_value = []
+        llm_client.generate.return_value = "I don't have enough information to answer."
+
+        session = AsyncMock()
+        result = await service_with_rag.ask(session, "Something obscure", top_k=5)
+
+        assert result["citations"] == []
+        llm_client.generate.assert_called_once()
+
+    async def test_ask_includes_timing(
+        self, service_with_rag, paper_repo, embedder, llm_client
+    ):
+        paper_repo.search_semantic.return_value = []
+
+        session = AsyncMock()
+        result = await service_with_rag.ask(session, "Anything", top_k=3)
+
+        assert "took_ms" in result
+        assert isinstance(result["took_ms"], int)

@@ -189,6 +189,31 @@ class SemanticSearchResult(BaseModel):
     score: float
 
 
+class AskRequest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    question: str = Field(min_length=1, max_length=1000)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class Citation(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    paper_id: UUID
+    pmid: str
+    title: str
+    score: float
+
+
+class AskResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    answer: str
+    citations: list[Citation]
+    model: str
+    took_ms: int
+
+
 class ApiResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 

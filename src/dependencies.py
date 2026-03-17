@@ -4,6 +4,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.llm.embedder import Embedder
+from src.llm.llm_client import LLMClient
 from src.papers.pubmed_client import PubMedClient
 from src.papers.repository import PaperRepository, TagRepository
 from src.papers.service import PaperService
@@ -31,15 +32,21 @@ def get_embedder(request: Request) -> Embedder | None:
     return getattr(request.app.state, "embedder", None)
 
 
+def get_llm_client(request: Request) -> LLMClient | None:
+    return getattr(request.app.state, "llm_client", None)
+
+
 def get_paper_service(
     paper_repo: PaperRepository = Depends(get_paper_repo),
     tag_repo: TagRepository = Depends(get_tag_repo),
     pubmed_client: PubMedClient = Depends(get_pubmed_client),
     embedder: Embedder | None = Depends(get_embedder),
+    llm_client: LLMClient | None = Depends(get_llm_client),
 ) -> PaperService:
     return PaperService(
         paper_repo=paper_repo,
         tag_repo=tag_repo,
         pubmed_client=pubmed_client,
         embedder=embedder,
+        llm_client=llm_client,
     )

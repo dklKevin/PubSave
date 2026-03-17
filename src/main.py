@@ -7,8 +7,10 @@ from src.config import get_settings
 from src.database import create_engine, create_session_factory
 from src.health.router import router as health_router
 from src.llm.openai_embedder import OpenAIEmbedder
+from src.llm.openai_llm import OpenAILLM
 from src.logging_config import setup_logging
 from src.middleware.error_handler import register_error_handlers
+from src.papers.ask_router import router as ask_router
 from src.papers.pubmed_client import PubMedClient
 from src.papers.router import router as papers_router
 from src.papers.tag_router import router as tags_router
@@ -27,9 +29,11 @@ async def lifespan(app: FastAPI):
 
     if settings.openai_api_key:
         app.state.embedder = OpenAIEmbedder(api_key=settings.openai_api_key)
+        app.state.llm_client = OpenAILLM(api_key=settings.openai_api_key)
         logger.info("RAG features enabled")
     else:
         app.state.embedder = None
+        app.state.llm_client = None
         logger.info("RAG features disabled, no OPENAI_API_KEY configured")
 
     logger.info("PubSave API started")
@@ -47,5 +51,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(papers_router)
     app.include_router(tags_router)
+    app.include_router(ask_router)
 
     return app
