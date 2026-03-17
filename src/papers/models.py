@@ -10,8 +10,14 @@ from src.database import Base
 paper_tags = Table(
     "paper_tags",
     Base.metadata,
-    Column("paper_id", UUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), primary_key=True),
-    Column("tag_id", UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "paper_id", UUID(as_uuid=True),
+        ForeignKey("papers.id", ondelete="CASCADE"), primary_key=True,
+    ),
+    Column(
+        "tag_id", UUID(as_uuid=True),
+        ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True,
+    ),
 )
 
 
@@ -31,7 +37,9 @@ class Paper(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    tags: Mapped[list["Tag"]] = relationship(secondary=paper_tags, back_populates="papers", lazy="selectin")
+    tags: Mapped[list["Tag"]] = relationship(
+        secondary=paper_tags, back_populates="papers", lazy="selectin",
+    )
 
 
 class Tag(Base):
@@ -41,4 +49,6 @@ class Tag(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    papers: Mapped[list["Paper"]] = relationship(secondary=paper_tags, back_populates="tags", lazy="selectin")
+    papers: Mapped[list["Paper"]] = relationship(
+        secondary=paper_tags, back_populates="tags", lazy="selectin",
+    )

@@ -96,7 +96,8 @@ class TestPaperDelete:
 
 class TestPaperSearch:
     async def test_search_by_title(self, repo, session):
-        await repo.create(session, PaperCreate(**make_paper_data_unique(title="Genomics Study Alpha")))
+        data = make_paper_data_unique(title="Genomics Study Alpha")
+        await repo.create(session, PaperCreate(**data))
 
         params = PaperSearchParams(q="Genomics")
         papers, total = await repo.search(session, params)

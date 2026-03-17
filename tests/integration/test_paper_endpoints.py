@@ -1,4 +1,3 @@
-import pytest
 from httpx import AsyncClient
 
 from tests.factories import make_paper_data_unique

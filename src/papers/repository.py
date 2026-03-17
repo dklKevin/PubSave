@@ -35,9 +35,9 @@ class PaperRepository:
         session.add(paper)
         try:
             await session.flush()
-        except IntegrityError:
+        except IntegrityError as exc:
             await session.rollback()
-            raise DuplicatePmidError(data.pmid)
+            raise DuplicatePmidError(data.pmid) from exc
 
         await session.refresh(paper)
         return paper
