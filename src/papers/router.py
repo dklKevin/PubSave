@@ -134,6 +134,16 @@ async def add_tags(
     return ApiResponse(success=True, data=_paper_to_response(paper))
 
 
+@router.post("/embed", status_code=200)
+async def embed_all_papers(
+    session: AsyncSession = Depends(get_session),
+    service: PaperService = Depends(get_paper_service),
+):
+    count = await service.embed_all(session)
+    await session.commit()
+    return ApiResponse(success=True, data={"embedded": count})
+
+
 @router.delete("/{paper_id}/tags/{tag_name}")
 async def remove_tag(
     paper_id: UUID,

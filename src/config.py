@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str
     pubmed_base_url: str = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     log_level: str = "INFO"
+    openai_api_key: str | None = None
 
     model_config = {"env_file": ".env", "frozen": True, "extra": "ignore"}
 

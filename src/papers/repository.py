@@ -113,6 +113,17 @@ class PaperRepository:
         await session.delete(paper)
         await session.flush()
 
+    async def find_unembedded(self, session: AsyncSession, limit: int = 50) -> list[Paper]:
+        """Find papers that have an abstract but no embedding."""
+        stmt = (
+            select(Paper)
+            .where(Paper.abstract.isnot(None), Paper.embedding.is_(None))
+            .order_by(Paper.created_at)
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
     async def search(
         self, session: AsyncSession, params: PaperSearchParams
     ) -> tuple[list[Paper], int]:

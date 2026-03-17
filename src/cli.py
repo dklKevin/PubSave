@@ -217,6 +217,15 @@ def cmd_rm(args, client: httpx.Client, base: str) -> None:
     print(f"{GREEN}Deleted {paper_id[:8]}{RESET}")
 
 
+def cmd_embed_all(args, client: httpx.Client, base: str) -> None:
+    print(f"  {DIM}Embedding papers without vectors...{RESET}")
+    resp = client.post(f"{base}/api/v1/papers/embed", timeout=300)
+    _handle_error(resp)
+    body = resp.json()
+    count = body.get("data", {}).get("embedded", 0)
+    print(f"{GREEN}Embedded {count} paper(s){RESET}")
+
+
 def cmd_tags(args, client: httpx.Client, base: str) -> None:
     params = {"limit": args.limit, "page": args.page}
     resp = client.get(f"{base}/api/v1/tags", params=params)
@@ -283,6 +292,9 @@ def main() -> None:
     p_rm = sub.add_parser("rm", help="delete a paper")
     p_rm.add_argument("id", help="paper ID")
 
+    # embed-all
+    sub.add_parser("embed-all", help="backfill embeddings for papers without vectors")
+
     # tags
     p_tags = sub.add_parser("tags", help="list all tags")
     p_tags.add_argument("--page", type=int, default=1)
@@ -303,6 +315,7 @@ def main() -> None:
         "tag": cmd_tag,
         "untag": cmd_untag,
         "rm": cmd_rm,
+        "embed-all": cmd_embed_all,
         "tags": cmd_tags,
     }
     commands[args.command](args, client, base)
