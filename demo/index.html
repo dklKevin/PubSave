@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PubSave</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --border: #334155;
+    --text: #F8FAFC;
+    --text-dim: #94A3B8;
+    --green: #22C55E;
+    --green-dim: rgba(34, 197, 94, 0.12);
+    --blue: #3B82F6;
+    --blue-dim: rgba(59, 130, 246, 0.12);
+    --orange: #F59E0B;
+    --orange-dim: rgba(245, 158, 11, 0.12);
+    --red: #EF4444;
+    --red-dim: rgba(239, 68, 68, 0.12);
+    --mono: 'Space Mono', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* -- Slide system -- */
+  .deck { position: relative; width: 100vw; height: 100vh; scroll-snap-type: y mandatory; }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 48px 64px;
+    opacity: 0; transform: translateY(24px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none;
+  }
+  .slide.active {
+    opacity: 1; transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /* -- Typography -- */
+  .mono { font-family: var(--mono); }
+  .label {
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--green);
+    margin-bottom: 16px; font-weight: 700;
+  }
+  h1 {
+    font-family: var(--mono); font-size: 56px;
+    font-weight: 700; letter-spacing: -2px;
+    line-height: 1.1; margin-bottom: 16px;
+  }
+  h2 {
+    font-family: var(--mono); font-size: 36px;
+    font-weight: 700; letter-spacing: -1px;
+    margin-bottom: 32px; text-align: center;
+    line-height: 1.2;
+  }
+  .subtitle {
+    font-size: 18px; color: var(--text-dim);
+    font-weight: 300; max-width: 520px;
+    text-align: center; line-height: 1.6;
+  }
+
+  /* -- Terminal -- */
+  .terminal {
+    background: #0D1117; border: 1px solid var(--border);
+    border-radius: 8px; width: 100%; max-width: 640px;
+    overflow: hidden; font-family: var(--mono);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  }
+  .terminal-bar {
+    background: #161B22; padding: 10px 14px;
+    display: flex; align-items: center; gap: 6px;
+    border-bottom: 1px solid #21262D;
+  }
+  .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .terminal-dot.r { background: #FF5F57; }
+  .terminal-dot.y { background: #FEBC2E; }
+  .terminal-dot.g { background: #28C840; }
+  .terminal-label {
+    flex: 1; text-align: center;
+    font-size: 11px; color: #484F58;
+    font-family: var(--mono);
+  }
+  .terminal-body {
+    padding: 16px 20px; font-size: 13px;
+    line-height: 1.9;
+  }
+  .p { color: var(--green); }
+  .c { color: #6E7681; }
+  .u { color: var(--blue); }
+  .s { color: #A5D6FF; }
+  .k { color: var(--orange); }
+  .v { color: var(--green); }
+
+  /* -- Cards -- */
+  .grid { display: grid; gap: 16px; max-width: 720px; width: 100%; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 24px;
+    transition: border-color 200ms ease;
+  }
+  .card:hover { border-color: var(--green); }
+  .card h4 {
+    font-family: var(--mono); font-size: 14px;
+    font-weight: 700; margin-bottom: 8px;
+  }
+  .card p { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+  /* -- Endpoint table -- */
+  .endpoints {
+    width: 100%; max-width: 680px;
+    border-collapse: collapse;
+  }
+  .endpoints th {
+    text-align: left; padding: 8px 12px;
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 2px;
+    color: var(--text-dim); border-bottom: 1px solid var(--border);
+  }
+  .endpoints td {
+    padding: 10px 12px; font-size: 13px;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+  }
+
+  /* -- Stats -- */
+  .stats { display: flex; gap: 48px; margin-top: 40px; }
+  .stat-num {
+    font-family: var(--mono); font-size: 32px;
+    font-weight: 700; color: var(--green);
+  }
+  .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+  /* -- Architecture -- */
+  .arch {
+    display: flex; align-items: center; gap: 24px;
+    max-width: 720px;
+  }
+  .arch-node {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px;
+    text-align: center; flex: 1;
+  }
+  .arch-node.active { border-color: var(--green); box-shadow: 0 0 24px var(--green-dim); }
+  .arch-node h4 { font-family: var(--mono); font-size: 14px; margin-bottom: 4px; }
+  .arch-node p { font-size: 11px; color: var(--text-dim); }
+  .arch-arrow { color: var(--text-dim); font-size: 18px; font-family: var(--mono); }
+
+  /* -- Response block -- */
+  .response {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px; margin-top: 16px;
+    max-width: 640px; width: 100%;
+    font-family: var(--mono); font-size: 12px;
+    line-height: 1.8; max-height: 220px; overflow-y: auto;
+    opacity: 0; transform: translateY(12px);
+    transition: opacity 0.5s ease 0.4s, transform 0.5s ease 0.4s;
+  }
+  .slide.active .response { opacity: 1; transform: translateY(0); }
+
+  /* -- CTA -- */
+  .cta-box {
+    background: var(--surface); border: 1px solid var(--green);
+    border-radius: 8px; padding: 20px 40px;
+    font-family: var(--mono); font-size: 18px;
+    margin-top: 32px;
+    box-shadow: 0 0 32px var(--green-dim);
+  }
+
+  /* -- Command ref table -- */
+  .cmd-table {
+    width: 100%; max-width: 580px;
+    border-collapse: collapse;
+  }
+  .cmd-table td {
+    padding: 8px 12px; font-size: 13px;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+    font-family: var(--mono);
+  }
+  .cmd-table td:first-child { color: var(--green); white-space: nowrap; }
+  .cmd-table td:last-child { color: var(--text-dim); font-family: var(--sans); }
+
+  /* -- Nav -- */
+  .nav {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 12px;
+    z-index: 100;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 100px; padding: 6px 20px;
+  }
+  .nav-btn {
+    background: none; border: none; color: var(--text-dim);
+    font-size: 18px; cursor: pointer; padding: 4px 6px;
+    font-family: var(--mono);
+    transition: color 150ms ease;
+  }
+  .nav-btn:hover { color: var(--text); }
+  .dots { display: flex; gap: 5px; }
+  .dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--border); transition: all 250ms ease;
+  }
+  .dot.on { background: var(--green); transform: scale(1.4); }
+  .counter {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--text-dim); min-width: 40px;
+    text-align: center;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .slide { padding: 32px 24px; }
+    h1 { font-size: 36px; }
+    h2 { font-size: 24px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .arch { flex-direction: column; }
+    .arch-arrow { transform: rotate(90deg); }
+    .stats { gap: 24px; }
+    .terminal { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- 1: Title -->
+  <div class="slide active" data-slide="0">
+    <div class="label">Personal Research Tool</div>
+    <h1>PubSave</h1>
+    <p class="subtitle">Save PubMed papers from your terminal. Tag them. Search them. One command to run.</p>
+    <div class="stats">
+      <div><div class="stat-num">11</div><div class="stat-label">Endpoints</div></div>
+      <div><div class="stat-num">92</div><div class="stat-label">Tests</div></div>
+      <div><div class="stat-num">9</div><div class="stat-label">CLI Commands</div></div>
+    </div>
+  </div>
+
+  <!-- 2: Problem -->
+  <div class="slide" data-slide="1">
+    <div class="label">The Problem</div>
+    <h2>36M+ papers on PubMed.<br>Where are yours?</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <h4>Scattered</h4>
+        <p>Papers across browser tabs, PDFs in random folders, PMIDs on sticky notes.</p>
+      </div>
+      <div class="card">
+        <h4>Unsearchable</h4>
+        <p>No way to search your saved papers by topic, author, or tag.</p>
+      </div>
+      <div class="card">
+        <h4>Unorganized</h4>
+        <p>No tagging by project, topic, or reading status.</p>
+      </div>
+      <div class="card">
+        <h4>Manual</h4>
+        <p>Copy-pasting titles and abstracts from PubMed every time.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3: Architecture -->
+  <div class="slide" data-slide="2">
+    <div class="label">Architecture</div>
+    <h2>CLI &rarr; API &rarr; Database</h2>
+    <div class="arch">
+      <div class="arch-node active">
+        <h4>pubsave</h4>
+        <p>CLI tool</p>
+      </div>
+      <div class="arch-arrow">&rarr;</div>
+      <div class="arch-node">
+        <h4>FastAPI</h4>
+        <p>async + validated</p>
+      </div>
+      <div class="arch-arrow">&rarr;</div>
+      <div class="arch-node">
+        <h4>PostgreSQL</h4>
+        <p>papers + tags</p>
+      </div>
+    </div>
+    <div class="terminal" style="max-width: 420px; margin-top: 32px;">
+      <div class="terminal-bar">
+        <div class="terminal-dot r"></div>
+        <div class="terminal-dot y"></div>
+        <div class="terminal-dot g"></div>
+        <div class="terminal-label">terminal</div>
+      </div>
+      <div class="terminal-body" style="padding: 12px 20px;">
+        <span class="p">$</span> docker compose up<br>
+        <span class="p">$</span> pip install -e .<br>
+        <span class="c"># ready to go</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4: CLI Commands -->
+  <div class="slide" data-slide="3">
+    <div class="label">CLI</div>
+    <h2>9 Commands</h2>
+    <table class="cmd-table">
+      <tbody>
+        <tr><td>pubsave fetch 33057194</td><td>Save a paper from PubMed</td></tr>
+        <tr><td>pubsave ls</td><td>List your papers</td></tr>
+        <tr><td>pubsave get a1b2c3</td><td>View one paper (short ID)</td></tr>
+        <tr><td>pubsave search microbiome</td><td>Search by keyword</td></tr>
+        <tr><td>pubsave search -t genetics</td><td>Search by tag</td></tr>
+        <tr><td>pubsave tag a1b2c3 genetics</td><td>Add tags</td></tr>
+        <tr><td>pubsave untag a1b2c3 genetics</td><td>Remove a tag</td></tr>
+        <tr><td>pubsave rm a1b2c3</td><td>Delete (with confirmation)</td></tr>
+        <tr><td>pubsave tags</td><td>List all tags</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 5: Fetch -->
+  <div class="slide" data-slide="4">
+    <div class="label">Fetch</div>
+    <h2>Save a paper by PMID</h2>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot r"></div>
+        <div class="terminal-dot y"></div>
+        <div class="terminal-dot g"></div>
+        <div class="terminal-label">fetch</div>
+      </div>
+      <div class="terminal-body">
+        <span class="p">$</span> pubsave fetch <span class="u">33057194</span>
+      </div>
+    </div>
+    <div class="response">
+      <span class="v">Saved paper a1b2c3d4</span><br><br>
+      &nbsp;&nbsp;<span class="k">Title:</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="s">Evidence for 28 genetic disorders discovered<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;by combining healthcare and research data</span><br>
+      &nbsp;&nbsp;<span class="k">PMID:</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="s">33057194</span><br>
+      &nbsp;&nbsp;<span class="k">Journal:</span>&nbsp;&nbsp;<span class="s">Nature</span><br>
+      &nbsp;&nbsp;<span class="k">Authors:</span>&nbsp;&nbsp;<span class="s">Blair D, PPM T, Palotie A, ... (32 authors)</span><br>
+      &nbsp;&nbsp;<span class="k">DOI:</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="s">10.1038/s41586-020-2832-5</span>
+    </div>
+  </div>
+
+  <!-- 6: Tag & Search -->
+  <div class="slide" data-slide="5">
+    <div class="label">Tag + Search</div>
+    <h2>Organize &amp; Find</h2>
+    <div class="grid grid-2" style="max-width: 640px;">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+          <div class="terminal-label">tag</div>
+        </div>
+        <div class="terminal-body" style="font-size: 12px; padding: 12px 16px;">
+          <span class="p">$</span> pubsave tag <span class="u">a1b2c3</span> <span class="s">genetics</span><br>
+          <span class="v">Tagged a1b2c3 with: genetics</span>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+          <div class="terminal-label">search by tag</div>
+        </div>
+        <div class="terminal-body" style="font-size: 12px; padding: 12px 16px;">
+          <span class="p">$</span> pubsave search <span class="u">-t genetics</span><br><br>
+          <span class="c">  2 papers found</span>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+          <div class="terminal-label">search by keyword</div>
+        </div>
+        <div class="terminal-body" style="font-size: 12px; padding: 12px 16px;">
+          <span class="p">$</span> pubsave search <span class="u">leprosy</span><br><br>
+          <span class="c">  1 paper found</span>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+          <div class="terminal-label">search by author</div>
+        </div>
+        <div class="terminal-body" style="font-size: 12px; padding: 12px 16px;">
+          <span class="p">$</span> pubsave search <span class="u">-a Zhang</span><br><br>
+          <span class="c">  2 papers found</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7: Under the hood -->
+  <div class="slide" data-slide="6">
+    <div class="label">Engineering</div>
+    <h2>What's under the hood</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <h4>Docker Compose</h4>
+        <p>One command. API + Postgres. Auto-migrations on boot.</p>
+      </div>
+      <div class="card">
+        <h4>CLI + Short IDs</h4>
+        <p>8 commands. Type 6 characters instead of a full UUID.</p>
+      </div>
+      <div class="card">
+        <h4>Architecture</h4>
+        <p>Repository pattern. Service layer. Dependency injection.</p>
+      </div>
+      <div class="card">
+        <h4>92 Tests</h4>
+        <p>Unit + integration. Real Postgres via testcontainers.</p>
+      </div>
+      <div class="card">
+        <h4>Compact Mode</h4>
+        <p>?compact=true for shorter responses. CLI uses it by default.</p>
+      </div>
+      <div class="card">
+        <h4>Security</h4>
+        <p>ANSI sanitization, LIKE escaping, XXE-safe XML, input validation.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8: CTA -->
+  <div class="slide" data-slide="7">
+    <div class="label">Get Started</div>
+    <h1>PubSave</h1>
+    <p class="subtitle">Save papers. Tag them. Search them.</p>
+    <div class="cta-box">
+      <span class="p">$</span> pubsave fetch 33057194
+    </div>
+    <p style="margin-top: 32px; font-size: 12px; color: var(--text-dim); font-family: var(--mono);">
+      FastAPI &middot; PostgreSQL &middot; Docker &middot; 92 tests &middot; 9 CLI commands
+    </p>
+  </div>
+
+</div>
+
+<!-- Nav -->
+<nav class="nav" role="navigation" aria-label="Slide navigation">
+  <button class="nav-btn" onclick="go(-1)" aria-label="Previous slide">&lsaquo;</button>
+  <div class="dots" id="dots"></div>
+  <span class="counter" id="counter">1/8</span>
+  <button class="nav-btn" onclick="go(1)" aria-label="Next slide">&rsaquo;</button>
+</nav>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const counter = document.getElementById('counter');
+  const dotsEl = document.getElementById('dots');
+  let cur = 0;
+
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    dotsEl.appendChild(d);
+  });
+  const dots = document.querySelectorAll('.dot');
+
+  function show(idx) {
+    slides[cur].classList.remove('active');
+    dots[cur].classList.remove('on');
+    cur = Math.max(0, Math.min(idx, slides.length - 1));
+    slides[cur].classList.add('active');
+    dots[cur].classList.add('on');
+    counter.textContent = (cur + 1) + '/' + slides.length;
+  }
+
+  function go(dir) { show(cur + dir); }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+  });
+
+  let tx = 0;
+  document.addEventListener('touchstart', function(e) { tx = e.touches[0].clientX; });
+  document.addEventListener('touchend', function(e) {
+    var d = tx - e.changedTouches[0].clientX;
+    if (Math.abs(d) > 50) go(d > 0 ? 1 : -1);
+  });
+</script>
+
+</body>
+</html>
