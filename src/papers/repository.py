@@ -113,6 +113,24 @@ class PaperRepository:
         await session.delete(paper)
         await session.flush()
 
+    async def search_semantic(
+        self, session: AsyncSession, query_embedding: list[float], limit: int = 5
+    ) -> list[tuple[Paper, float]]:
+        """Cosine similarity search against paper embeddings.
+
+        Returns (paper, score) tuples sorted by descending similarity.
+        pgvector's <=> returns cosine distance, so score = 1 - distance.
+        """
+        distance = Paper.embedding.cosine_distance(query_embedding)
+        stmt = (
+            select(Paper, (1 - distance).label("score"))
+            .where(Paper.embedding.isnot(None))
+            .order_by(distance)
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        return [(row.Paper, float(row.score)) for row in result.all()]
+
     async def find_unembedded(self, session: AsyncSession, limit: int = 50) -> list[Paper]:
         """Find papers that have an abstract but no embedding."""
         stmt = (

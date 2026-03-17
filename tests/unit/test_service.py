@@ -272,3 +272,29 @@ class TestEmbedAll:
 
         assert count == 0
         paper_repo.find_unembedded.assert_not_called()
+
+
+class TestSemanticSearch:
+    async def test_search_semantic_embeds_query_and_returns_results(
+        self, service_with_embedder, paper_repo, embedder
+    ):
+        paper = _make_mock_paper(pmid="111", abstract="Gene therapy")
+        paper_repo.search_semantic.return_value = [(paper, 0.9234)]
+
+        session = AsyncMock()
+        results = await service_with_embedder.search_semantic(session, "gene therapy")
+
+        embedder.embed.assert_called_once_with("gene therapy")
+        paper_repo.search_semantic.assert_called_once()
+        assert len(results) == 1
+        assert results[0][1] == 0.9234
+
+    async def test_search_semantic_returns_empty_when_no_matches(
+        self, service_with_embedder, paper_repo, embedder
+    ):
+        paper_repo.search_semantic.return_value = []
+
+        session = AsyncMock()
+        results = await service_with_embedder.search_semantic(session, "obscure topic")
+
+        assert results == []

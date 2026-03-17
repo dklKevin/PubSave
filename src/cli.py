@@ -170,7 +170,39 @@ def cmd_get(args, client: httpx.Client, base: str) -> None:
     print()
 
 
+def _print_semantic_results(results: list[dict]) -> None:
+    if not results:
+        print("  No results found.")
+        return
+    print(f"  {'SCORE':<8} {'PMID':<12} {'TITLE'}")
+    print(f"  {'—'*8} {'—'*12} {'—'*50}")
+    for r in results:
+        paper = r.get("paper", {})
+        score = r.get("score", 0)
+        pmid = _sanitize(str(paper.get("pmid", "")))
+        title = _sanitize(str(paper.get("title", "")))
+        if len(title) > 55:
+            title = title[:52] + "..."
+        print(f"  {score:<8.4f} {pmid:<12} {title}")
+
+
 def cmd_search(args, client: httpx.Client, base: str) -> None:
+    if args.semantic:
+        if not args.query:
+            print(f"{RED}Error: semantic search requires a query{RESET}")
+            sys.exit(1)
+        params = {"q": args.query, "limit": args.limit}
+        resp = client.get(f"{base}/api/v1/papers/search/semantic", params=params)
+        _handle_error(resp)
+        body = resp.json()
+        if args.json_output:
+            print(json.dumps(body, indent=2))
+            return
+        print(f"\n  {BOLD}Semantic search results{RESET}\n")
+        _print_semantic_results(body.get("data", []))
+        print()
+        return
+
     extra = {}
     if args.query:
         extra["q"] = args.query
@@ -272,6 +304,7 @@ def main() -> None:
     # search
     p_search = sub.add_parser("search", help="search papers")
     p_search.add_argument("query", nargs="?", default=None, help="keyword search")
+    p_search.add_argument("-s", "--semantic", action="store_true", help="semantic search")
     p_search.add_argument("-t", "--tag", help="filter by tag")
     p_search.add_argument("-a", "--author", help="filter by author")
     p_search.add_argument("--full", action="store_true", help="show full details")

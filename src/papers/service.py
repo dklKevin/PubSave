@@ -96,6 +96,13 @@ class PaperService:
 
         return total
 
+    async def search_semantic(
+        self, session: AsyncSession, query: str, limit: int = 5
+    ) -> list[tuple[Paper, float]]:
+        """Embed the query and find papers by cosine similarity."""
+        query_embedding = await self._embedder.embed(query)
+        return await self._paper_repo.search_semantic(session, query_embedding, limit)
+
     async def get_paper(self, session: AsyncSession, paper_id: UUID) -> Paper:
         paper = await self._paper_repo.find_by_id(session, paper_id)
         if paper is None:

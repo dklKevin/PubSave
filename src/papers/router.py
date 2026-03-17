@@ -2,9 +2,11 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.dependencies import get_paper_service, get_session
+from src.dependencies import get_embedder, get_paper_service, get_session
+from src.llm.embedder import Embedder
 from src.papers.schemas import (
     ApiResponse,
     PaginationMeta,
@@ -13,6 +15,7 @@ from src.papers.schemas import (
     PaperResponse,
     PaperSearchParams,
     PaperUpdate,
+    SemanticSearchResult,
     TagRequest,
 )
 from src.papers.service import PaperService
@@ -69,6 +72,34 @@ async def search_papers(
         data=[_paper_to_response(p, compact=compact) for p in papers],
         meta=PaginationMeta(total=total, page=page, limit=limit),
     )
+
+
+@router.get("/search/semantic")
+async def semantic_search(
+    q: str = Query(min_length=1, max_length=1000),
+    limit: int = Query(default=5, ge=1, le=20),
+    session: AsyncSession = Depends(get_session),
+    service: PaperService = Depends(get_paper_service),
+    embedder: Embedder | None = Depends(get_embedder),
+):
+    if embedder is None:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": "RAG features unavailable, OPENAI_API_KEY not configured",
+            },
+        )
+
+    results = await service.search_semantic(session, q, limit)
+    data = [
+        SemanticSearchResult(
+            paper=PaperCompactResponse.model_validate(paper),
+            score=round(score, 4),
+        )
+        for paper, score in results
+    ]
+    return ApiResponse(success=True, data=data)
 
 
 @router.get("/{paper_id}")

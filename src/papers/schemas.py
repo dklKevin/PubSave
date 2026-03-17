@@ -182,6 +182,13 @@ class PaginationMeta(BaseModel):
     limit: int
 
 
+class SemanticSearchResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    paper: PaperCompactResponse
+    score: float
+
+
 class ApiResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
