@@ -20,6 +20,9 @@ dependencies = [
     "defusedxml>=0.7",
 ]
 
+[project.scripts]
+pubsave = "src.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
