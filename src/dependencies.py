@@ -3,7 +3,6 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import Settings, get_settings
 from src.papers.pubmed_client import PubMedClient
 from src.papers.repository import PaperRepository, TagRepository
 from src.papers.service import PaperService
@@ -23,8 +22,8 @@ def get_tag_repo() -> TagRepository:
     return TagRepository()
 
 
-def get_pubmed_client(settings: Settings = Depends(get_settings)) -> PubMedClient:
-    return PubMedClient(base_url=settings.pubmed_base_url)
+def get_pubmed_client(request: Request) -> PubMedClient:
+    return request.app.state.pubmed_client
 
 
 def get_paper_service(

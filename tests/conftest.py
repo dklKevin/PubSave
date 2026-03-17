@@ -57,11 +57,13 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
 async def client(engine) -> AsyncGenerator[AsyncClient, None]:
     from src.database import create_session_factory
     from src.main import create_app
+    from src.papers.pubmed_client import PubMedClient
 
     app = create_app()
 
     session_factory = create_session_factory(engine)
     app.state.session_factory = session_factory
+    app.state.pubmed_client = PubMedClient(base_url="https://eutils.ncbi.nlm.nih.gov/entrez/eutils")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

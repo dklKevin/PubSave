@@ -8,6 +8,7 @@ from src.database import create_engine, create_session_factory
 from src.health.router import router as health_router
 from src.logging_config import setup_logging
 from src.middleware.error_handler import register_error_handlers
+from src.papers.pubmed_client import PubMedClient
 from src.papers.router import router as papers_router
 from src.papers.tag_router import router as tags_router
 
@@ -21,10 +22,12 @@ async def lifespan(app: FastAPI):
 
     engine = create_engine(settings.database_url)
     app.state.session_factory = create_session_factory(engine)
+    app.state.pubmed_client = PubMedClient(base_url=settings.pubmed_base_url)
 
     logger.info("PubSave API started")
     yield
 
+    await app.state.pubmed_client.close()
     await engine.dispose()
     logger.info("PubSave API shutdown")
 

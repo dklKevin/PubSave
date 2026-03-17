@@ -14,8 +14,14 @@ _PMID_RE = re.compile(r"^\d{1,8}$")
 
 
 class PubMedClient:
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, client: httpx.AsyncClient | None = None) -> None:
         self._base_url = base_url
+        self._client = client or httpx.AsyncClient(timeout=30)
+        self._owns_client = client is None
+
+    async def close(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
 
     async def fetch_paper(self, pmid: str) -> PaperCreate:
         if not _PMID_RE.match(pmid):
@@ -25,9 +31,8 @@ class PubMedClient:
         params = {"db": "pubmed", "id": pmid, "rettype": "xml", "retmode": "xml"}
 
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.get(url, params=params)
-                response.raise_for_status()
+            response = await self._client.get(url, params=params)
+            response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise PubMedFetchError(pmid, f"HTTP {exc.response.status_code}") from exc
         except httpx.HTTPError as exc:
