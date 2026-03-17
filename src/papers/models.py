@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import Column, DateTime, ForeignKey, String, Table, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from src.database import Base
 
@@ -32,6 +33,7 @@ class Paper(Base):
     journal: Mapped[str | None] = mapped_column(String(500), nullable=True)
     publication_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
     doi: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
