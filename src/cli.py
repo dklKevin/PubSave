@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import re
 import sys
 from urllib.parse import urlparse
@@ -39,8 +40,6 @@ def _validate_base_url(url: str) -> str:
 
 
 def _get_client(args) -> tuple[httpx.Client, str]:
-    import os
-
     base = os.environ.get("PUBSAVE_URL", "http://localhost:8000")
     base = _validate_base_url(base)
     return httpx.Client(timeout=30), base
@@ -124,6 +123,27 @@ def _resolve_id(client: httpx.Client, base: str, short_id: str) -> str:
     return str(data[0]["id"])
 
 
+def _list_command(
+    args, client: httpx.Client, base: str,
+    url: str, header: str, extra_params: dict | None = None,
+) -> None:
+    params = {"compact": "true", "limit": args.limit, "page": args.page}
+    if args.full:
+        params.pop("compact")
+    if extra_params:
+        params.update(extra_params)
+    resp = client.get(f"{base}{url}", params=params)
+    _handle_error(resp)
+    body = resp.json()
+    if args.json_output:
+        print(json.dumps(body, indent=2))
+        return
+    total = body.get("meta", {}).get("total", 0)
+    print(f"\n  {BOLD}{header} ({total} total){RESET}\n")
+    _print_paper_table(body.get("data", []))
+    print()
+
+
 def cmd_fetch(args, client: httpx.Client, base: str) -> None:
     resp = client.post(f"{base}/api/v1/papers/fetch/{args.pmid}")
     _handle_error(resp)
@@ -134,20 +154,7 @@ def cmd_fetch(args, client: httpx.Client, base: str) -> None:
 
 
 def cmd_ls(args, client: httpx.Client, base: str) -> None:
-    params = {"compact": "true", "limit": args.limit, "page": args.page}
-    if args.full:
-        params.pop("compact")
-    resp = client.get(f"{base}/api/v1/papers", params=params)
-    _handle_error(resp)
-    body = resp.json()
-    if args.json_output:
-        print(json.dumps(body, indent=2))
-        return
-    meta = body.get("meta", {})
-    total = meta.get("total", 0)
-    print(f"\n  {BOLD}Papers ({total} total){RESET}\n")
-    _print_paper_table(body.get("data", []))
-    print()
+    _list_command(args, client, base, "/api/v1/papers", "Papers")
 
 
 def cmd_get(args, client: httpx.Client, base: str) -> None:
@@ -164,26 +171,16 @@ def cmd_get(args, client: httpx.Client, base: str) -> None:
 
 
 def cmd_search(args, client: httpx.Client, base: str) -> None:
-    params = {"compact": "true", "limit": args.limit, "page": args.page}
-    if args.full:
-        params.pop("compact")
+    extra = {}
     if args.query:
-        params["q"] = args.query
+        extra["q"] = args.query
     if args.tag:
-        params["tag"] = args.tag
+        extra["tag"] = args.tag
     if args.author:
-        params["author"] = args.author
-    resp = client.get(f"{base}/api/v1/papers/search", params=params)
-    _handle_error(resp)
-    body = resp.json()
-    if args.json_output:
-        print(json.dumps(body, indent=2))
-        return
-    meta = body.get("meta", {})
-    total = meta.get("total", 0)
-    print(f"\n  {BOLD}Search results ({total} total){RESET}\n")
-    _print_paper_table(body.get("data", []))
-    print()
+        extra["author"] = args.author
+    _list_command(
+        args, client, base, "/api/v1/papers/search", "Search results", extra,
+    )
 
 
 def cmd_tag(args, client: httpx.Client, base: str) -> None:

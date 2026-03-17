@@ -12,8 +12,28 @@ from src.papers.schemas import PaperCreate, PaperSearchParams, PaperUpdate
 
 logger = logging.getLogger(__name__)
 
+
 def _escape_like(value: str) -> str:
     return re.sub(r"([%_\\])", r"\\\1", value)
+
+
+async def _paginate(session: AsyncSession, stmt, page: int, limit: int, order_by):
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await session.execute(count_stmt)).scalar_one()
+
+    offset = (page - 1) * limit
+    stmt = stmt.order_by(order_by).offset(offset).limit(limit)
+    result = await session.execute(stmt)
+
+    return list(result.scalars().all()), total
+
+
+async def _get_paper_or_raise(session: AsyncSession, paper_id: UUID) -> Paper:
+    stmt = select(Paper).where(Paper.id == paper_id)
+    paper = (await session.execute(stmt)).scalar_one_or_none()
+    if paper is None:
+        raise PaperNotFoundError(paper_id)
+    return paper
 
 
 _ALLOWED_UPDATE_FIELDS = frozenset(
@@ -53,7 +73,8 @@ class PaperRepository:
         return result.scalar_one_or_none()
 
     async def find_all(
-        self, session: AsyncSession, page: int = 1, limit: int = 20, id_prefix: str | None = None
+        self, session: AsyncSession, page: int = 1, limit: int = 20,
+        id_prefix: str | None = None,
     ) -> tuple[list[Paper], int]:
         stmt = select(Paper)
 
@@ -61,15 +82,7 @@ class PaperRepository:
             escaped = _escape_like(id_prefix)
             stmt = stmt.where(cast(Paper.id, String).ilike(f"{escaped}%"))
 
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total = (await session.execute(count_stmt)).scalar_one()
-
-        offset = (page - 1) * limit
-        stmt = stmt.order_by(Paper.created_at.desc()).offset(offset).limit(limit)
-        result = await session.execute(stmt)
-        papers = list(result.scalars().all())
-
-        return papers, total
+        return await _paginate(session, stmt, page, limit, Paper.created_at.desc())
 
     async def update(self, session: AsyncSession, paper_id: UUID, data: PaperUpdate) -> Paper:
         paper = await self.find_by_id(session, paper_id)
@@ -81,7 +94,8 @@ class PaperRepository:
 
         if "authors" in update_data and update_data["authors"] is not None:
             update_data["authors"] = [
-                a.model_dump() if hasattr(a, "model_dump") else a for a in update_data["authors"]
+                a.model_dump() if hasattr(a, "model_dump") else a
+                for a in update_data["authors"]
             ]
 
         for key, value in update_data.items():
@@ -107,7 +121,9 @@ class PaperRepository:
         if params.q:
             escaped = _escape_like(params.q)
             pattern = f"%{escaped}%"
-            stmt = stmt.where(Paper.title.ilike(pattern) | Paper.abstract.ilike(pattern))
+            stmt = stmt.where(
+                Paper.title.ilike(pattern) | Paper.abstract.ilike(pattern)
+            )
 
         if params.pmid:
             stmt = stmt.where(Paper.pmid == params.pmid)
@@ -121,24 +137,16 @@ class PaperRepository:
         if params.tag:
             stmt = stmt.join(paper_tags).join(Tag).where(Tag.name == params.tag)
 
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total = (await session.execute(count_stmt)).scalar_one()
-
-        offset = (params.page - 1) * params.limit
-        stmt = stmt.order_by(Paper.created_at.desc()).offset(offset).limit(params.limit)
-        result = await session.execute(stmt)
-        papers = list(result.scalars().all())
-
-        return papers, total
+        return await _paginate(
+            session, stmt, params.page, params.limit, Paper.created_at.desc()
+        )
 
 
 class TagRepository:
-    async def add_tags(self, session: AsyncSession, paper_id: UUID, tag_names: list[str]) -> Paper:
-        paper_stmt = select(Paper).where(Paper.id == paper_id)
-        paper = (await session.execute(paper_stmt)).scalar_one_or_none()
-        if paper is None:
-            raise PaperNotFoundError(paper_id)
-
+    async def add_tags(
+        self, session: AsyncSession, paper_id: UUID, tag_names: list[str],
+    ) -> Paper:
+        paper = await _get_paper_or_raise(session, paper_id)
         existing_tag_names = {t.name for t in paper.tags}
 
         for name in tag_names:
@@ -158,11 +166,10 @@ class TagRepository:
         await session.refresh(paper)
         return paper
 
-    async def remove_tag(self, session: AsyncSession, paper_id: UUID, tag_name: str) -> Paper:
-        paper_stmt = select(Paper).where(Paper.id == paper_id)
-        paper = (await session.execute(paper_stmt)).scalar_one_or_none()
-        if paper is None:
-            raise PaperNotFoundError(paper_id)
+    async def remove_tag(
+        self, session: AsyncSession, paper_id: UUID, tag_name: str,
+    ) -> Paper:
+        paper = await _get_paper_or_raise(session, paper_id)
 
         tag_stmt = select(Tag).where(Tag.name == tag_name)
         tag = (await session.execute(tag_stmt)).scalar_one_or_none()
@@ -177,12 +184,4 @@ class TagRepository:
     async def find_all(
         self, session: AsyncSession, page: int = 1, limit: int = 20
     ) -> tuple[list[Tag], int]:
-        count_stmt = select(func.count()).select_from(Tag)
-        total = (await session.execute(count_stmt)).scalar_one()
-
-        offset = (page - 1) * limit
-        stmt = select(Tag).order_by(Tag.name).offset(offset).limit(limit)
-        result = await session.execute(stmt)
-        tags = list(result.scalars().all())
-
-        return tags, total
+        return await _paginate(session, select(Tag), page, limit, Tag.name)
