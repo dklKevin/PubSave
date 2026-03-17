@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.postgres import PostgresContainer
 
@@ -16,7 +17,7 @@ _db_url = None
 
 def pytest_configure(config):
     global _container, _db_url
-    _container = PostgresContainer("postgres:16-alpine")
+    _container = PostgresContainer("pgvector/pgvector:pg16")
     _container.start()
     sync_url = _container.get_connection_url()
     _db_url = sync_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
@@ -38,6 +39,7 @@ def database_url() -> str:
 async def engine(database_url):
     eng = create_async_engine(database_url, echo=False)
     async with eng.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
     yield eng
     async with eng.begin() as conn:
