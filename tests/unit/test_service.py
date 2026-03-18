@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.exceptions import DuplicatePmidError, PaperNotFoundError
-from src.papers.schemas import AuthorSchema, PaperCreate, PaperSearchParams
+from src.exceptions import DuplicatePmidError, PaperNotFoundError, RagUnavailableError
+from src.papers.schemas import AskResponse, AuthorSchema, PaperCreate, PaperSearchParams
 from src.papers.service import RAG_SYSTEM_PROMPT, PaperService
 
 EMBEDDING_DIM = 1536
@@ -285,6 +285,18 @@ class TestEmbedAll:
         assert count == 0
         embedder.embed_batch.assert_not_called()
 
+    async def test_embed_all_batch_failure_logs_and_stops(
+        self, service_with_embedder, paper_repo, embedder
+    ):
+        papers = [_make_mock_paper(pmid="111", abstract="Abstract one")]
+        paper_repo.find_unembedded.return_value = papers
+        embedder.embed_batch.side_effect = Exception("API rate limit")
+
+        session = AsyncMock()
+        count = await service_with_embedder.embed_all(session)
+
+        assert count == 0
+
     async def test_embed_all_without_embedder(self, service, paper_repo):
         session = AsyncMock()
         count = await service.embed_all(session)
@@ -294,6 +306,10 @@ class TestEmbedAll:
 
 
 class TestSemanticSearch:
+    async def test_search_semantic_raises_without_embedder(self, service):
+        with pytest.raises(RagUnavailableError):
+            await service.search_semantic(None, "gene therapy")
+
     async def test_search_semantic_embeds_query_and_returns_results(
         self, service_with_embedder, paper_repo, embedder
     ):
@@ -320,6 +336,16 @@ class TestSemanticSearch:
 
 
 class TestAsk:
+    async def test_ask_raises_without_embedder(self, service):
+        with pytest.raises(RagUnavailableError):
+            await service.ask(None, "What is gene therapy?")
+
+    async def test_ask_raises_without_llm_client(
+        self, service_with_embedder
+    ):
+        with pytest.raises(RagUnavailableError):
+            await service_with_embedder.ask(None, "What is gene therapy?")
+
     async def test_ask_returns_answer_with_citations(
         self, service_with_rag, paper_repo, embedder, llm_client
     ):
@@ -343,12 +369,13 @@ class TestAsk:
         assert "PMID:222" in call_args[1]["user"]
         assert "Gene therapy overview." in call_args[1]["user"]
 
-        assert result["answer"] == llm_client.generate.return_value
-        assert len(result["citations"]) == 2
-        assert result["citations"][0]["pmid"] == "111"
-        assert result["citations"][0]["score"] == 0.92
-        assert result["model"] == "gpt-4o-mini"
-        assert result["took_ms"] >= 0
+        assert isinstance(result, AskResponse)
+        assert result.answer == llm_client.generate.return_value
+        assert len(result.citations) == 2
+        assert result.citations[0].pmid == "111"
+        assert result.citations[0].score == 0.92
+        assert result.model == "gpt-4o-mini"
+        assert result.took_ms >= 0
 
     async def test_ask_with_no_matching_papers(
         self, service_with_rag, paper_repo, embedder, llm_client
@@ -359,7 +386,7 @@ class TestAsk:
         session = AsyncMock()
         result = await service_with_rag.ask(session, "Something obscure", top_k=5)
 
-        assert result["citations"] == []
+        assert result.citations == []
         llm_client.generate.assert_called_once()
 
     async def test_ask_includes_timing(
@@ -370,5 +397,5 @@ class TestAsk:
         session = AsyncMock()
         result = await service_with_rag.ask(session, "Anything", top_k=3)
 
-        assert "took_ms" in result
-        assert isinstance(result["took_ms"], int)
+        assert isinstance(result, AskResponse)
+        assert isinstance(result.took_ms, int)

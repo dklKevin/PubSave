@@ -28,3 +28,8 @@ class PubMedFetchError(PubSaveError):
         super().__init__(f"Failed to fetch PMID {pmid}: {reason}")
         self.pmid = pmid
         self.reason = reason
+
+
+class RagUnavailableError(PubSaveError):
+    def __init__(self) -> None:
+        super().__init__("RAG features unavailable, embedder or LLM client not configured")

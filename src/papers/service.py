@@ -4,13 +4,13 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.exceptions import DuplicatePmidError, PaperNotFoundError
+from src.exceptions import DuplicatePmidError, PaperNotFoundError, RagUnavailableError
 from src.llm.embedder import Embedder
 from src.llm.llm_client import LLMClient
 from src.papers.models import Paper
 from src.papers.pubmed_client import PubMedClient
 from src.papers.repository import PaperRepository, TagRepository
-from src.papers.schemas import PaperCreate, PaperSearchParams, PaperUpdate
+from src.papers.schemas import AskResponse, Citation, PaperCreate, PaperSearchParams, PaperUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,9 @@ class PaperService:
         """Backfill embeddings for papers that have abstracts but no embedding.
 
         Processes in batches to stay within OpenAI's per-request token limits.
-        Returns the total number of papers embedded.
+        Returns the total number of papers successfully embedded. If a batch
+        fails, the error is logged and the loop terminates — already-flushed
+        batches are preserved, but remaining batches are not attempted.
         """
         if self._embedder is None:
             logger.info("Skipping embed-all, no embedder configured")
@@ -96,7 +98,12 @@ class PaperService:
                 break
 
             abstracts = [p.abstract for p in papers]
-            embeddings = await self._embedder.embed_batch(abstracts)
+            try:
+                embeddings = await self._embedder.embed_batch(abstracts)
+            except Exception:
+                pmids = [p.pmid for p in papers]
+                logger.warning("Failed to embed batch (PMIDs: %s), skipping", pmids, exc_info=True)
+                break
 
             for paper, embedding in zip(papers, embeddings, strict=True):
                 paper.embedding = embedding
@@ -110,18 +117,22 @@ class PaperService:
         self, session: AsyncSession, query: str, limit: int = 5
     ) -> list[tuple[Paper, float]]:
         """Embed the query and find papers by cosine similarity."""
+        if self._embedder is None:
+            raise RagUnavailableError()
         query_embedding = await self._embedder.embed(query)
         return await self._paper_repo.search_semantic(session, query_embedding, limit)
 
     async def ask(
         self, session: AsyncSession, question: str, top_k: int = 5
-    ) -> dict:
+    ) -> AskResponse:
         """Retrieve relevant papers and generate an answer using the LLM.
 
-        Returns a dict with answer, citations, model name, and elapsed time.
         The system prompt lives here (not in the LLM client) because prompt
         construction is business logic. The LLM client is pure transport.
         """
+        if self._embedder is None or self._llm_client is None:
+            raise RagUnavailableError()
+
         start = time.monotonic()
 
         query_embedding = await self._embedder.embed(question)
@@ -133,24 +144,24 @@ class PaperService:
             context_parts.append(
                 f"[PMID:{paper.pmid}] {paper.title}\n{paper.abstract or ''}"
             )
-            citations.append({
-                "paper_id": paper.id,
-                "pmid": paper.pmid,
-                "title": paper.title,
-                "score": round(score, 4),
-            })
+            citations.append(Citation(
+                paper_id=paper.id,
+                pmid=paper.pmid,
+                title=paper.title,
+                score=round(score, 4),
+            ))
 
         user_message = f"Question: {question}\n\nPapers:\n" + "\n\n".join(context_parts)
         answer = await self._llm_client.generate(system=RAG_SYSTEM_PROMPT, user=user_message)
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
 
-        return {
-            "answer": answer,
-            "citations": citations,
-            "model": self._llm_client.model,
-            "took_ms": elapsed_ms,
-        }
+        return AskResponse(
+            answer=answer,
+            citations=citations,
+            model=self._llm_client.model,
+            took_ms=elapsed_ms,
+        )
 
     async def get_paper(self, session: AsyncSession, paper_id: UUID) -> Paper:
         paper = await self._paper_repo.find_by_id(session, paper_id)

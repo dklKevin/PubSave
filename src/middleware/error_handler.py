@@ -8,6 +8,7 @@ from src.exceptions import (
     PaperNotFoundError,
     PubMedFetchError,
     PubSaveError,
+    RagUnavailableError,
     TagNotFoundError,
 )
 
@@ -18,6 +19,7 @@ _ERROR_STATUS_MAP = {
     TagNotFoundError: 404,
     DuplicatePmidError: 409,
     PubMedFetchError: 502,
+    RagUnavailableError: 503,
 }
 
 
