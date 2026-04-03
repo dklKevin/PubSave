@@ -46,7 +46,7 @@ pubsave ls
 # View a specific paper (6+ char ID prefix works)
 pubsave get a1b2c3
 
-# Search by keyword, author, or tag
+# Search by keyword, author (matches first or last name), or tag
 pubsave search microbiome
 pubsave search -a Zhang
 pubsave search -t genetics
@@ -180,12 +180,12 @@ See `docs/adr-001-rag-design.md` for detailed rationale on cosine similarity, wh
 
 ## Testing
 
-120 tests across two layers:
+177 tests across two layers, 88% code coverage:
 
 | Layer | Tests | What's covered |
 |-------|------:|----------------|
-| Unit | 84 | Schema validation, service logic, PubMed XML parsing, CLI helpers, embedder/LLM protocols, RAG prompt construction |
-| Integration | 36 | Repository queries, API endpoints, tag operations, ID prefix resolution (real Postgres via pgvector) |
+| Unit | 126 | Schema validation, service logic, PubMed XML parsing, CLI commands (mocked httpx), embedder/LLM protocols, RAG prompt construction |
+| Integration | 51 | Repository queries, API endpoints, tag operations, ID prefix resolution, health check, 503 paths, full CRUD lifecycle (real Postgres via pgvector) |
 
 Integration tests run against a real PostgreSQL+pgvector instance via [testcontainers](https://testcontainers-python.readthedocs.io/) -- no SQLite mocks.
 
@@ -195,6 +195,9 @@ Integration tests run against a real PostgreSQL+pgvector instance via [testconta
 # Requires Python 3.12+ and Docker (for testcontainers)
 pip install -e ".[dev]"
 pytest
+
+# With coverage report
+pytest --cov=src --cov-report=term-missing
 ```
 
 ## Tech stack
