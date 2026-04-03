@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="PubSave", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="PubSave", version="0.2.0", lifespan=lifespan)
 
     register_error_handlers(app)
     app.include_router(health_router)

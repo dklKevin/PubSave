@@ -6,6 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.cli import (
+    EXIT_CANCELLED,
+    EXIT_ERROR,
+    EXIT_OK,
     _get_client,
     _handle_error,
     _resolve_id,
@@ -261,13 +264,13 @@ class TestCmdRm:
             _mock_response(200, {"data": {"title": "Paper to Delete"}}),
         ]
         client.delete.return_value = _mock_response(200, {})
-        args = _make_args(id="aaaa-f")
+        args = _make_args(id="aaaa-f", force=False)
         with patch("builtins.input", return_value="y"):
             cmd_rm(args, client, "http://test")
         out = capsys.readouterr().out
         assert "Deleted" in out
 
-    def test_rm_cancelled(self, capsys):
+    def test_rm_cancelled_exits_with_cancelled_code(self):
         client = MagicMock()
         client.get.side_effect = [
             _mock_response(200, {"data": [
@@ -275,12 +278,25 @@ class TestCmdRm:
             ]}),
             _mock_response(200, {"data": {"title": "Paper"}}),
         ]
-        args = _make_args(id="aaaa-f")
+        args = _make_args(id="aaaa-f", force=False)
         with patch("builtins.input", return_value="n"):
-            cmd_rm(args, client, "http://test")
-        out = capsys.readouterr().out
-        assert "Cancelled" in out
+            with pytest.raises(SystemExit) as exc_info:
+                cmd_rm(args, client, "http://test")
+            assert exc_info.value.code == EXIT_CANCELLED
         client.delete.assert_not_called()
+
+    def test_rm_force_skips_confirmation_and_detail_fetch(self, capsys):
+        client = MagicMock()
+        client.get.return_value = _mock_response(200, {"data": [
+            {"id": "aaaa-full-uuid-here-1234567890ab", "title": "P"},
+        ]})
+        client.delete.return_value = _mock_response(200, {})
+        args = _make_args(id="aaaa-f", force=True)
+        cmd_rm(args, client, "http://test")
+        out = capsys.readouterr().out
+        assert "Deleted" in out
+        client.delete.assert_called_once()
+        assert client.get.call_count == 1  # only _resolve_id, no detail fetch
 
 
 class TestCmdAsk:
@@ -339,3 +355,23 @@ class TestCmdTags:
         cmd_tags(args, client, "http://test")
         out = capsys.readouterr().out
         assert "No tags found" in out
+
+
+class TestExitCodes:
+    def test_exit_code_constants(self):
+        assert EXIT_OK == 0
+        assert EXIT_ERROR == 1
+        assert EXIT_CANCELLED == 2
+
+    def test_handle_error_exits_with_error_code(self):
+        resp = _mock_response(400, {"error": "Bad request"})
+        with pytest.raises(SystemExit) as exc_info:
+            _handle_error(resp)
+        assert exc_info.value.code == EXIT_ERROR
+
+    def test_short_id_no_match_exits_with_error_code(self):
+        client = MagicMock()
+        client.get.return_value = _mock_response(200, {"data": []})
+        with pytest.raises(SystemExit) as exc_info:
+            _resolve_id(client, "http://test", "000000")
+        assert exc_info.value.code == EXIT_ERROR

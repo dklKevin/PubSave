@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pubsave"
-version = "0.1.0"
+version = "0.2.0"
 description = "PubMed Bookmark API — save, tag, and search PubMed paper metadata"
 requires-python = ">=3.12"
 dependencies = [

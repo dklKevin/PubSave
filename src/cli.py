@@ -5,16 +5,29 @@ import json
 import os
 import re
 import sys
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from urllib.parse import urlparse
 
 import httpx
 
 from src.papers.formatters import format_author
 
+
+def _get_version() -> str:
+    try:
+        return pkg_version("pubsave")
+    except PackageNotFoundError:
+        return "0.0.0-dev"
+
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 _MIN_SHORT_ID = 6
 _LLM_TIMEOUT = 120
 _EMBED_TIMEOUT = 300
+
+EXIT_OK = 0
+EXIT_ERROR = 1
+EXIT_CANCELLED = 2
 
 GREEN = "\033[32m"
 RED = "\033[31m"
@@ -31,10 +44,10 @@ def _validate_base_url(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         print(f"{RED}Error: PUBSAVE_URL must use http or https, got: {parsed.scheme!r}{RESET}")
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
     if not parsed.netloc:
         print(f"{RED}Error: PUBSAVE_URL is missing a host{RESET}")
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
     host = parsed.hostname or ""
     if parsed.scheme == "http" and host not in ("localhost", "127.0.0.1", "::1"):
         print(f"{DIM}Warning: using plain http with non-localhost host ({host}){RESET}")
@@ -55,7 +68,7 @@ def _handle_error(resp: httpx.Response) -> None:
         except Exception:
             msg = resp.text
         print(f"{RED}Error ({resp.status_code}): {_sanitize(str(msg))}{RESET}")
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
 
 
 def _print_paper_table(papers: list[dict]) -> None:
@@ -106,7 +119,7 @@ def _resolve_id(client: httpx.Client, base: str, short_id: str) -> str:
         return short_id
     if len(short_id) < _MIN_SHORT_ID:
         print(f"{RED}Error: ID prefix must be at least {_MIN_SHORT_ID} characters{RESET}")
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
     resp = client.get(
         f"{base}/api/v1/papers",
         params={"compact": "true", "id_prefix": short_id, "limit": 10},
@@ -115,13 +128,13 @@ def _resolve_id(client: httpx.Client, base: str, short_id: str) -> str:
     data = resp.json().get("data", [])
     if len(data) == 0:
         print(f"{RED}Error: no paper found matching '{short_id}'{RESET}")
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
     if len(data) > 1:
         print(f"{RED}Error: '{short_id}' matches {len(data)} papers. Be more specific:{RESET}")
         for m in data:
             title = _sanitize(str(m.get("title", "")))[:60]
             print(f"  {str(m['id'])[:8]}  {title}")
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
     return str(data[0]["id"])
 
 
@@ -129,11 +142,8 @@ def _list_command(
     args, client: httpx.Client, base: str,
     url: str, header: str, extra_params: dict | None = None,
 ) -> None:
-    params = {"compact": "true", "limit": args.limit, "page": args.page}
-    if args.full:
-        params.pop("compact")
-    if extra_params:
-        params.update(extra_params)
+    compact = {} if args.full else {"compact": "true"}
+    params = {"limit": args.limit, "page": args.page, **compact, **(extra_params or {})}
     resp = client.get(f"{base}{url}", params=params)
     _handle_error(resp)
     body = resp.json()
@@ -192,7 +202,7 @@ def cmd_search(args, client: httpx.Client, base: str) -> None:
     if args.semantic:
         if not args.query:
             print(f"{RED}Error: semantic search requires a query{RESET}")
-            sys.exit(1)
+            sys.exit(EXIT_ERROR)
         params = {"q": args.query, "limit": args.limit}
         resp = client.get(f"{base}/api/v1/papers/search/semantic", params=params)
         _handle_error(resp)
@@ -237,15 +247,16 @@ def cmd_untag(args, client: httpx.Client, base: str) -> None:
 
 def cmd_rm(args, client: httpx.Client, base: str) -> None:
     paper_id = _resolve_id(client, base, args.id)
-    get_resp = client.get(f"{base}/api/v1/papers/{paper_id}")
-    _handle_error(get_resp)
-    p = get_resp.json().get("data", {})
-    title = _sanitize(str(p.get("title", "")))[:80]
-    print(f"  {paper_id[:8]}  {title}")
-    confirm = input(f"  {BOLD}Delete this paper? [y/N]:{RESET} ").strip().lower()
-    if confirm != "y":
-        print("  Cancelled.")
-        return
+    if not args.force:
+        get_resp = client.get(f"{base}/api/v1/papers/{paper_id}")
+        _handle_error(get_resp)
+        p = get_resp.json().get("data", {})
+        title = _sanitize(str(p.get("title", "")))[:80]
+        print(f"  {paper_id[:8]}  {title}")
+        confirm = input(f"  {BOLD}Delete this paper? [y/N]:{RESET} ").strip().lower()
+        if confirm != "y":
+            print("  Cancelled.")
+            sys.exit(EXIT_CANCELLED)
     resp = client.delete(f"{base}/api/v1/papers/{paper_id}")
     _handle_error(resp)
     print(f"{GREEN}Deleted {paper_id[:8]}{RESET}")
@@ -316,6 +327,7 @@ def main() -> None:
         description="Save, tag, and search PubMed papers from your terminal.",
     )
     parser.add_argument("--json", dest="json_output", action="store_true", help="raw JSON output")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_get_version()}")
     sub = parser.add_subparsers(dest="command")
 
     # fetch
@@ -355,6 +367,7 @@ def main() -> None:
     # rm
     p_rm = sub.add_parser("rm", help="delete a paper")
     p_rm.add_argument("id", help="paper ID")
+    p_rm.add_argument("-f", "--force", action="store_true", help="skip confirmation")
 
     # ask
     p_ask = sub.add_parser("ask", help="ask a question over your saved papers")
@@ -372,23 +385,28 @@ def main() -> None:
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
-        sys.exit(0)
+        sys.exit(EXIT_OK)
 
     client, base = _get_client()
-
-    commands = {
-        "fetch": cmd_fetch,
-        "ls": cmd_ls,
-        "get": cmd_get,
-        "search": cmd_search,
-        "tag": cmd_tag,
-        "untag": cmd_untag,
-        "rm": cmd_rm,
-        "ask": cmd_ask,
-        "embed-all": cmd_embed_all,
-        "tags": cmd_tags,
-    }
-    commands[args.command](args, client, base)
+    try:
+        commands = {
+            "fetch": cmd_fetch,
+            "ls": cmd_ls,
+            "get": cmd_get,
+            "search": cmd_search,
+            "tag": cmd_tag,
+            "untag": cmd_untag,
+            "rm": cmd_rm,
+            "ask": cmd_ask,
+            "embed-all": cmd_embed_all,
+            "tags": cmd_tags,
+        }
+        commands[args.command](args, client, base)
+    except httpx.RequestError as exc:
+        print(f"{RED}Error: cannot reach server — {exc}{RESET}")
+        sys.exit(EXIT_ERROR)
+    finally:
+        client.close()
 
 
 if __name__ == "__main__":
