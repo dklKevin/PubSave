@@ -255,7 +255,9 @@ class TestCmdRm:
     def test_rm_with_confirm(self, capsys):
         client = MagicMock()
         client.get.side_effect = [
-            _mock_response(200, {"data": [{"id": "aaaa-full-uuid-here-1234567890ab", "title": "P"}]}),
+            _mock_response(200, {"data": [
+                {"id": "aaaa-full-uuid-here-1234567890ab", "title": "P"},
+            ]}),
             _mock_response(200, {"data": {"title": "Paper to Delete"}}),
         ]
         client.delete.return_value = _mock_response(200, {})
@@ -268,7 +270,9 @@ class TestCmdRm:
     def test_rm_cancelled(self, capsys):
         client = MagicMock()
         client.get.side_effect = [
-            _mock_response(200, {"data": [{"id": "aaaa-full-uuid-here-1234567890ab", "title": "P"}]}),
+            _mock_response(200, {"data": [
+                {"id": "aaaa-full-uuid-here-1234567890ab", "title": "P"},
+            ]}),
             _mock_response(200, {"data": {"title": "Paper"}}),
         ]
         args = _make_args(id="aaaa-f")
