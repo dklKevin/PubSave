@@ -13,6 +13,7 @@ from src.middleware.error_handler import register_error_handlers
 from src.papers.ask_router import router as ask_router
 from src.papers.pubmed_client import PubMedClient
 from src.papers.router import router as papers_router
+from src.papers.tag_router import paper_tags_router
 from src.papers.tag_router import router as tags_router
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(papers_router)
     app.include_router(tags_router)
+    app.include_router(paper_tags_router)
     app.include_router(ask_router)
 
     return app

@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from src.papers.schemas import _format_author
+from src.papers.formatters import format_author
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 _MIN_SHORT_ID = 6
@@ -82,7 +82,7 @@ def _print_paper_detail(p: dict) -> None:
         print(f"  {BOLD}Journal:{RESET}  {_sanitize(str(p['journal']))}")
     authors = p.get("authors", [])
     if authors:
-        names = [_format_author(a) for a in authors]
+        names = [format_author(a) for a in authors]
         print(f"  {BOLD}Authors:{RESET}  {_sanitize(', '.join(names))}")
     tags = p.get("tags", [])
     if tags:
