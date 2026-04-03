@@ -2,9 +2,12 @@ import pytest
 from pydantic import ValidationError
 
 from src.papers.schemas import (
+    ApiResponse,
     AuthorSchema,
+    PaginationMeta,
     PaperCompactResponse,
     PaperCreate,
+    PaperResponse,
     PaperSearchParams,
     PaperUpdate,
     TagRequest,
@@ -110,6 +113,10 @@ class TestTagRequest:
         req = TagRequest(tags=["  ML ", "Genomics"])
         assert req.tags == ["ml", "genomics"]
 
+    def test_whitespace_only_tag_rejected(self):
+        with pytest.raises(ValidationError):
+            TagRequest(tags=["   "])
+
     def test_tag_name_too_long(self):
         with pytest.raises(ValidationError):
             TagRequest(tags=["a" * 101])
@@ -157,8 +164,7 @@ class TestPaperCompactResponse:
             "tags": [],
             "journal": "Nature",
         }
-        base.update(overrides)
-        return base
+        return {**base, **overrides}
 
     def test_basic_compact_response(self):
         data = self._make_data(
@@ -225,8 +231,57 @@ class TestPaperCompactResponse:
         resp = PaperCompactResponse.model_validate(data)
         assert resp.tags == ["ml", "genomics"]
 
+    def test_validation_does_not_mutate_input_dict(self):
+        data = self._make_data(authors=[{"last_name": "Zhang", "first_name": "Li"}])
+        original_keys = set(data.keys())
+        PaperCompactResponse.model_validate(data)
+        assert set(data.keys()) == original_keys
+        assert "authors_short" not in data
+
     def test_compact_is_frozen(self):
         data = self._make_data()
         resp = PaperCompactResponse.model_validate(data)
         with pytest.raises(ValidationError):
             resp.title = "Modified"
+
+
+class TestApiResponse:
+    def test_generic_with_single_model(self):
+        paper_data = {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "pmid": "123",
+            "title": "T",
+            "authors": [],
+            "tags": [],
+            "created_at": "2025-01-01T00:00:00",
+            "updated_at": "2025-01-01T00:00:00",
+        }
+        resp = ApiResponse[PaperResponse](
+            success=True,
+            data=PaperResponse.model_validate(paper_data),
+        )
+        assert resp.success is True
+        assert resp.data.pmid == "123"
+
+    def test_generic_with_list(self):
+        resp = ApiResponse[list[str]](success=True, data=["a", "b"])
+        assert resp.data == ["a", "b"]
+
+    def test_generic_with_none_data(self):
+        resp = ApiResponse[str](success=True, data=None)
+        assert resp.data is None
+
+    def test_error_response(self):
+        resp = ApiResponse[None](success=False, error="Not found")
+        assert resp.error == "Not found"
+        assert resp.data is None
+
+    def test_with_pagination_meta(self):
+        meta = PaginationMeta(total=50, page=1, limit=20)
+        resp = ApiResponse[list[str]](success=True, data=["x"], meta=meta)
+        assert resp.meta.total == 50
+
+    def test_is_frozen(self):
+        resp = ApiResponse[str](success=True, data="test")
+        with pytest.raises(ValidationError):
+            resp.success = False

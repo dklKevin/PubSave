@@ -1,10 +1,6 @@
 """OpenAI Embedder — text-embedding-3-small by default."""
 
-import logging
-
 from openai import AsyncOpenAI
-
-logger = logging.getLogger(__name__)
 
 
 class OpenAIEmbedder:

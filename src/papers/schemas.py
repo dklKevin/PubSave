@@ -1,7 +1,10 @@
 from datetime import datetime
+from typing import Generic, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+T = TypeVar("T")
 
 
 class AuthorSchema(BaseModel):
@@ -124,7 +127,7 @@ class PaperCompactResponse(BaseModel):
             return obj
         if isinstance(data, dict) and "authors_short" not in data:
             authors = data.get("authors", []) or []
-            data["authors_short"] = _format_authors_short(authors)
+            return {**data, "authors_short": _format_authors_short(authors)}
         return data
 
     @field_validator("title", mode="before")
@@ -153,14 +156,16 @@ class TagRequest(BaseModel):
 
     tags: list[str] = Field(min_length=1, max_length=50)
 
-    def model_post_init(self, __context) -> None:
-        normalized = [t.strip().lower() for t in self.tags]
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, v: list[str]) -> list[str]:
+        normalized = [t.strip().lower() for t in v]
         for tag in normalized:
             if not tag:
                 raise ValueError("Tag name cannot be blank")
             if len(tag) > 100:
                 raise ValueError("Tag name must be 100 characters or fewer")
-        object.__setattr__(self, "tags", normalized)
+        return normalized
 
 
 class PaperSearchParams(BaseModel):
@@ -214,10 +219,10 @@ class AskResponse(BaseModel):
     took_ms: int
 
 
-class ApiResponse(BaseModel):
+class ApiResponse(BaseModel, Generic[T]):  # noqa: UP046 - Pydantic requires Generic[T]
     model_config = ConfigDict(frozen=True)
 
     success: bool
-    data: object | None = None
+    data: T | None = None
     error: str | None = None
     meta: PaginationMeta | None = None

@@ -1,4 +1,3 @@
-import logging
 import re
 import xml.etree.ElementTree as ET
 
@@ -7,8 +6,6 @@ import httpx
 
 from src.exceptions import PubMedFetchError
 from src.papers.schemas import AuthorSchema, PaperCreate
-
-logger = logging.getLogger(__name__)
 
 _PMID_RE = re.compile(r"^\d{1,8}$")
 

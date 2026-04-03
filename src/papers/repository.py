@@ -1,16 +1,13 @@
-import logging
 import re
 from uuid import UUID
 
-from sqlalchemy import String, cast, func, select
+from sqlalchemy import String, cast, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.exceptions import DuplicatePmidError, PaperNotFoundError, TagNotFoundError
 from src.papers.models import Paper, Tag, paper_tags
 from src.papers.schemas import PaperCreate, PaperSearchParams, PaperUpdate
-
-logger = logging.getLogger(__name__)
 
 
 def _escape_like(value: str) -> str:
@@ -159,8 +156,18 @@ class PaperRepository:
 
         if params.author:
             escaped = _escape_like(params.author)
+            pattern = f"%{escaped}%"
             stmt = stmt.where(
-                cast(Paper.authors, String).ilike(f"%{escaped}%")
+                select(1)
+                .select_from(func.jsonb_array_elements(Paper.authors).alias("a"))
+                .where(
+                    text(
+                        "a->>'last_name' ILIKE :pat"
+                        " OR a->>'first_name' ILIKE :pat"
+                    ).bindparams(pat=pattern)
+                )
+                .correlate(Paper)
+                .exists()
             )
 
         if params.tag:

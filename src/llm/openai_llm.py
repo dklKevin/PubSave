@@ -4,11 +4,7 @@ Pure transport layer: takes system and user strings, sends them to the model,
 returns the response. Prompt engineering belongs in the service layer.
 """
 
-import logging
-
 from openai import AsyncOpenAI
-
-logger = logging.getLogger(__name__)
 
 
 class OpenAILLM:
@@ -28,4 +24,4 @@ class OpenAILLM:
                 {"role": "user", "content": user},
             ],
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""

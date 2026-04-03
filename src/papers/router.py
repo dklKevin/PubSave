@@ -1,4 +1,3 @@
-import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -7,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import get_embedder, get_paper_service, get_session
 from src.llm.embedder import Embedder
+from src.papers.models import Paper
 from src.papers.schemas import (
     ApiResponse,
     PaginationMeta,
@@ -20,12 +20,12 @@ from src.papers.schemas import (
 )
 from src.papers.service import PaperService
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api/v1/papers", tags=["papers"])
 
 
-def _paper_to_response(paper, compact: bool = False):
+def _paper_to_response(
+    paper: Paper, compact: bool = False,
+) -> PaperCompactResponse | PaperResponse:
     if compact:
         return PaperCompactResponse.model_validate(paper)
     return PaperResponse.model_validate(paper)

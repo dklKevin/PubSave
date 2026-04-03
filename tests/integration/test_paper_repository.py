@@ -104,6 +104,56 @@ class TestPaperSearch:
         assert total >= 1
         assert any("Genomics" in p.title for p in papers)
 
+    async def test_search_by_author_last_name(self, repo, session):
+        data = make_paper_data_unique(
+            authors=[{"last_name": "Nakamura", "first_name": "Yuki"}],
+        )
+        await repo.create(session, PaperCreate(**data))
+
+        params = PaperSearchParams(author="Nakamura")
+        papers, total = await repo.search(session, params)
+        assert total >= 1
+        assert any(
+            a.get("last_name") == "Nakamura"
+            for p in papers
+            for a in (p.authors or [])
+        )
+
+    async def test_search_by_author_case_insensitive(self, repo, session):
+        data = make_paper_data_unique(
+            authors=[{"last_name": "Petrov", "first_name": "Anna"}],
+        )
+        await repo.create(session, PaperCreate(**data))
+
+        params = PaperSearchParams(author="petrov")
+        _papers, total = await repo.search(session, params)
+        assert total >= 1
+
+    async def test_search_by_author_partial_match(self, repo, session):
+        data = make_paper_data_unique(
+            authors=[{"last_name": "Johansson", "first_name": "Erik"}],
+        )
+        await repo.create(session, PaperCreate(**data))
+
+        params = PaperSearchParams(author="Johans")
+        _papers, total = await repo.search(session, params)
+        assert total >= 1
+
+    async def test_search_by_author_no_false_positive_on_keys(self, repo, session):
+        """Searching for 'last_name' (a JSON key) should not match papers."""
+        data = make_paper_data_unique(
+            authors=[{"last_name": "Unique999", "first_name": "Test"}],
+        )
+        await repo.create(session, PaperCreate(**data))
+
+        params = PaperSearchParams(author="last_name")
+        papers, _ = await repo.search(session, params)
+        assert not any(
+            a.get("last_name") == "Unique999"
+            for p in papers
+            for a in (p.authors or [])
+        )
+
     async def test_search_by_pmid(self, repo, session):
         await repo.create(session, PaperCreate(**make_paper_data_unique(pmid="77777777")))
 

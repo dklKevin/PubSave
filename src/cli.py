@@ -13,6 +13,8 @@ from src.papers.schemas import _format_author
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 _MIN_SHORT_ID = 6
+_LLM_TIMEOUT = 120
+_EMBED_TIMEOUT = 300
 
 GREEN = "\033[32m"
 RED = "\033[31m"
@@ -39,7 +41,7 @@ def _validate_base_url(url: str) -> str:
     return url.rstrip("/")
 
 
-def _get_client(args) -> tuple[httpx.Client, str]:
+def _get_client() -> tuple[httpx.Client, str]:
     base = os.environ.get("PUBSAVE_URL", "http://localhost:8000")
     base = _validate_base_url(base)
     return httpx.Client(timeout=30), base
@@ -253,7 +255,7 @@ def cmd_ask(args, client: httpx.Client, base: str) -> None:
     resp = client.post(
         f"{base}/api/v1/ask",
         json={"question": args.question, "top_k": args.top_k},
-        timeout=120,
+        timeout=_LLM_TIMEOUT,
     )
     _handle_error(resp)
     body = resp.json()
@@ -280,7 +282,7 @@ def cmd_ask(args, client: httpx.Client, base: str) -> None:
 
 def cmd_embed_all(args, client: httpx.Client, base: str) -> None:
     print(f"  {DIM}Embedding papers without vectors...{RESET}")
-    resp = client.post(f"{base}/api/v1/papers/embed", timeout=300)
+    resp = client.post(f"{base}/api/v1/papers/embed", timeout=_EMBED_TIMEOUT)
     _handle_error(resp)
     body = resp.json()
     count = body.get("data", {}).get("embedded", 0)
@@ -372,7 +374,7 @@ def main() -> None:
         parser.print_help()
         sys.exit(0)
 
-    client, base = _get_client(args)
+    client, base = _get_client()
 
     commands = {
         "fetch": cmd_fetch,
