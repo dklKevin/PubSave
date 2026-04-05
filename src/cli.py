@@ -20,6 +20,7 @@ def _get_version() -> str:
     except PackageNotFoundError:
         return "0.0.0-dev"
 
+
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 _MIN_SHORT_ID = 6
 _LLM_TIMEOUT = 120
@@ -76,7 +77,7 @@ def _print_paper_table(papers: list[dict]) -> None:
         print("  No papers found.")
         return
     print(f"  {'ID':<10} {'PMID':<12} {'TITLE':<50} {'TAGS'}")
-    print(f"  {'—'*10} {'—'*12} {'—'*50} {'—'*20}")
+    print(f"  {'—' * 10} {'—' * 12} {'—' * 50} {'—' * 20}")
     for p in papers:
         pid = _sanitize(str(p.get("id", ""))[:8])
         pmid = _sanitize(str(p.get("pmid", "")))
@@ -139,8 +140,12 @@ def _resolve_id(client: httpx.Client, base: str, short_id: str) -> str:
 
 
 def _list_command(
-    args, client: httpx.Client, base: str,
-    url: str, header: str, extra_params: dict | None = None,
+    args,
+    client: httpx.Client,
+    base: str,
+    url: str,
+    header: str,
+    extra_params: dict | None = None,
 ) -> None:
     compact = {} if args.full else {"compact": "true"}
     params = {"limit": args.limit, "page": args.page, **compact, **(extra_params or {})}
@@ -187,7 +192,7 @@ def _print_semantic_results(results: list[dict]) -> None:
         print("  No results found.")
         return
     print(f"  {'SCORE':<8} {'PMID':<12} {'TITLE'}")
-    print(f"  {'—'*8} {'—'*12} {'—'*50}")
+    print(f"  {'—' * 8} {'—' * 12} {'—' * 50}")
     for r in results:
         paper = r.get("paper", {})
         score = r.get("score", 0)
@@ -223,7 +228,12 @@ def cmd_search(args, client: httpx.Client, base: str) -> None:
     if args.author:
         extra["author"] = args.author
     _list_command(
-        args, client, base, "/api/v1/papers/search", "Search results", extra,
+        args,
+        client,
+        base,
+        "/api/v1/papers/search",
+        "Search results",
+        extra,
     )
 
 

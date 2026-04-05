@@ -70,7 +70,10 @@ class PaperRepository:
         return result.scalar_one_or_none()
 
     async def find_all(
-        self, session: AsyncSession, page: int = 1, limit: int = 20,
+        self,
+        session: AsyncSession,
+        page: int = 1,
+        limit: int = 20,
         id_prefix: str | None = None,
     ) -> tuple[list[Paper], int]:
         stmt = select(Paper)
@@ -91,8 +94,7 @@ class PaperRepository:
 
         if "authors" in update_data and update_data["authors"] is not None:
             update_data["authors"] = [
-                a.model_dump() if hasattr(a, "model_dump") else a
-                for a in update_data["authors"]
+                a.model_dump() if hasattr(a, "model_dump") else a for a in update_data["authors"]
             ]
 
         for key, value in update_data.items():
@@ -147,9 +149,7 @@ class PaperRepository:
         if params.q:
             escaped = _escape_like(params.q)
             pattern = f"%{escaped}%"
-            stmt = stmt.where(
-                Paper.title.ilike(pattern) | Paper.abstract.ilike(pattern)
-            )
+            stmt = stmt.where(Paper.title.ilike(pattern) | Paper.abstract.ilike(pattern))
 
         if params.pmid:
             stmt = stmt.where(Paper.pmid == params.pmid)
@@ -161,10 +161,9 @@ class PaperRepository:
                 select(1)
                 .select_from(func.jsonb_array_elements(Paper.authors).alias("a"))
                 .where(
-                    text(
-                        "a->>'last_name' ILIKE :pat"
-                        " OR a->>'first_name' ILIKE :pat"
-                    ).bindparams(pat=pattern)
+                    text("a->>'last_name' ILIKE :pat OR a->>'first_name' ILIKE :pat").bindparams(
+                        pat=pattern
+                    )
                 )
                 .correlate(Paper)
                 .exists()
@@ -173,14 +172,15 @@ class PaperRepository:
         if params.tag:
             stmt = stmt.join(paper_tags).join(Tag).where(Tag.name == params.tag)
 
-        return await _paginate(
-            session, stmt, params.page, params.limit, Paper.created_at.desc()
-        )
+        return await _paginate(session, stmt, params.page, params.limit, Paper.created_at.desc())
 
 
 class TagRepository:
     async def add_tags(
-        self, session: AsyncSession, paper_id: UUID, tag_names: list[str],
+        self,
+        session: AsyncSession,
+        paper_id: UUID,
+        tag_names: list[str],
     ) -> Paper:
         paper = await _get_paper_or_raise(session, paper_id)
         existing_tag_names = {t.name for t in paper.tags}
@@ -203,7 +203,10 @@ class TagRepository:
         return paper
 
     async def remove_tag(
-        self, session: AsyncSession, paper_id: UUID, tag_name: str,
+        self,
+        session: AsyncSession,
+        paper_id: UUID,
+        tag_name: str,
     ) -> Paper:
         paper = await _get_paper_or_raise(session, paper_id)
 

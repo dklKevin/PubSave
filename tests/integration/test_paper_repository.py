@@ -113,11 +113,7 @@ class TestPaperSearch:
         params = PaperSearchParams(author="Nakamura")
         papers, total = await repo.search(session, params)
         assert total >= 1
-        assert any(
-            a.get("last_name") == "Nakamura"
-            for p in papers
-            for a in (p.authors or [])
-        )
+        assert any(a.get("last_name") == "Nakamura" for p in papers for a in (p.authors or []))
 
     async def test_search_by_author_case_insensitive(self, repo, session):
         data = make_paper_data_unique(
@@ -148,11 +144,7 @@ class TestPaperSearch:
 
         params = PaperSearchParams(author="last_name")
         papers, _ = await repo.search(session, params)
-        assert not any(
-            a.get("last_name") == "Unique999"
-            for p in papers
-            for a in (p.authors or [])
-        )
+        assert not any(a.get("last_name") == "Unique999" for p in papers for a in (p.authors or []))
 
     async def test_search_by_pmid(self, repo, session):
         await repo.create(session, PaperCreate(**make_paper_data_unique(pmid="77777777")))

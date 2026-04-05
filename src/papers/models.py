@@ -12,12 +12,16 @@ paper_tags = Table(
     "paper_tags",
     Base.metadata,
     Column(
-        "paper_id", UUID(as_uuid=True),
-        ForeignKey("papers.id", ondelete="CASCADE"), primary_key=True,
+        "paper_id",
+        UUID(as_uuid=True),
+        ForeignKey("papers.id", ondelete="CASCADE"),
+        primary_key=True,
     ),
     Column(
-        "tag_id", UUID(as_uuid=True),
-        ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True,
+        "tag_id",
+        UUID(as_uuid=True),
+        ForeignKey("tags.id", ondelete="CASCADE"),
+        primary_key=True,
     ),
 )
 
@@ -40,7 +44,9 @@ class Paper(Base):
     )
 
     tags: Mapped[list["Tag"]] = relationship(
-        secondary=paper_tags, back_populates="papers", lazy="selectin",
+        secondary=paper_tags,
+        back_populates="papers",
+        lazy="selectin",
     )
 
 
@@ -52,5 +58,7 @@ class Tag(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     papers: Mapped[list["Paper"]] = relationship(
-        secondary=paper_tags, back_populates="tags", lazy="selectin",
+        secondary=paper_tags,
+        back_populates="tags",
+        lazy="selectin",
     )

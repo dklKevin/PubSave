@@ -5,7 +5,9 @@ health check, semantic search 503, ask 503, embed-all, error handler paths,
 compact query params on search, and the full CRUD + tag lifecycle.
 """
 
-from httpx import AsyncClient
+from unittest.mock import AsyncMock
+
+from httpx import ASGITransport, AsyncClient
 
 from tests.factories import make_paper_data_unique
 
@@ -23,9 +25,7 @@ class TestSemanticSearch503:
     """Semantic search returns 503 when no embedder is configured."""
 
     async def test_semantic_search_without_embedder(self, client: AsyncClient):
-        resp = await client.get(
-            "/api/v1/papers/search/semantic", params={"q": "gene therapy"}
-        )
+        resp = await client.get("/api/v1/papers/search/semantic", params={"q": "gene therapy"})
         assert resp.status_code == 503
         body = resp.json()
         assert body["success"] is False
@@ -36,9 +36,7 @@ class TestAsk503:
     """Ask endpoint returns 503 when no embedder/LLM configured."""
 
     async def test_ask_without_rag(self, client: AsyncClient):
-        resp = await client.post(
-            "/api/v1/ask", json={"question": "What is gene therapy?"}
-        )
+        resp = await client.post("/api/v1/ask", json={"question": "What is gene therapy?"})
         assert resp.status_code == 503
         body = resp.json()
         assert body["success"] is False
@@ -78,9 +76,7 @@ class TestFullPaperLifecycle:
         assert "updated_at" in paper
 
         # Get compact
-        compact_resp = await client.get(
-            f"/api/v1/papers/{paper_id}", params={"compact": "true"}
-        )
+        compact_resp = await client.get(f"/api/v1/papers/{paper_id}", params={"compact": "true"})
         assert compact_resp.status_code == 200
         compact = compact_resp.json()["data"]
         assert "authors_short" in compact
@@ -96,9 +92,7 @@ class TestFullPaperLifecycle:
         assert update_resp.json()["data"]["title"] == "Updated Smoke Test"
 
         # Search by keyword
-        search_resp = await client.get(
-            "/api/v1/papers/search", params={"q": "Updated Smoke"}
-        )
+        search_resp = await client.get("/api/v1/papers/search", params={"q": "Updated Smoke"})
         assert search_resp.status_code == 200
         assert search_resp.json()["meta"]["total"] >= 1
 
@@ -113,9 +107,7 @@ class TestFullPaperLifecycle:
         assert "authors_short" in results[0]
 
         # Search by author
-        author_resp = await client.get(
-            "/api/v1/papers/search", params={"author": "Smoke"}
-        )
+        author_resp = await client.get("/api/v1/papers/search", params={"author": "Smoke"})
         assert author_resp.status_code == 200
         assert author_resp.json()["meta"]["total"] >= 1
 
@@ -134,16 +126,12 @@ class TestFullPaperLifecycle:
         assert "smoke-test" in tag_names
 
         # Search by tag
-        tag_search = await client.get(
-            "/api/v1/papers/search", params={"tag": "smoke-test"}
-        )
+        tag_search = await client.get("/api/v1/papers/search", params={"tag": "smoke-test"})
         assert tag_search.status_code == 200
         assert tag_search.json()["meta"]["total"] >= 1
 
         # Untag
-        untag_resp = await client.delete(
-            f"/api/v1/papers/{paper_id}/tags/smoke-test"
-        )
+        untag_resp = await client.delete(f"/api/v1/papers/{paper_id}/tags/smoke-test")
         assert untag_resp.status_code == 200
         assert "smoke-test" not in untag_resp.json()["data"]["tags"]
 
@@ -192,3 +180,53 @@ class TestErrorHandlerPaths:
         """POST /embed-all must not be captured by /{paper_id} route."""
         resp = await client.post("/api/v1/papers/embed-all")
         assert resp.status_code == 200
+
+
+class TestHealthCheckFailure:
+    async def test_health_returns_503_when_db_unreachable(self, engine):
+        from src.dependencies import get_session
+        from src.main import create_app
+
+        app = create_app()
+
+        broken_session = AsyncMock()
+        broken_session.execute = AsyncMock(side_effect=ConnectionRefusedError("DB down"))
+
+        async def broken_get_session():
+            yield broken_session
+
+        app.dependency_overrides[get_session] = broken_get_session
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/health")
+
+        assert resp.status_code == 503
+        body = resp.json()
+        assert body["success"] is False
+
+
+class TestGenericErrorHandler:
+    async def test_unhandled_exception_returns_500(self, engine):
+        from src.dependencies import get_paper_service, get_session
+        from src.main import create_app
+
+        app = create_app()
+
+        async def fake_session():
+            yield AsyncMock()
+
+        def broken_service():
+            raise RuntimeError("Unexpected failure")
+
+        app.dependency_overrides[get_session] = fake_session
+        app.dependency_overrides[get_paper_service] = broken_service
+
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/api/v1/papers")
+
+        assert resp.status_code == 500
+        body = resp.json()
+        assert body["success"] is False
+        assert body["error"] == "Internal server error"

@@ -1,6 +1,31 @@
-from httpx import AsyncClient
+import uuid
+
+import respx
+from httpx import AsyncClient, Response
 
 from tests.factories import make_paper_data_unique
+
+
+def _pubmed_xml(pmid: str) -> str:
+    return f"""<?xml version="1.0" ?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>{pmid}</PMID>
+      <Article>
+        <Journal><Title>Test Journal</Title></Journal>
+        <ArticleTitle>Fetched Paper Title</ArticleTitle>
+        <Abstract><AbstractText>Fetched abstract.</AbstractText></Abstract>
+        <AuthorList>
+          <Author>
+            <LastName>Lee</LastName>
+            <ForeName>Kevin</ForeName>
+          </Author>
+        </AuthorList>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>"""
 
 
 class TestCreatePaperEndpoint:
@@ -65,9 +90,7 @@ class TestUpdatePaperEndpoint:
         create_resp = await client.post("/api/v1/papers", json=data)
         paper_id = create_resp.json()["data"]["id"]
 
-        response = await client.put(
-            f"/api/v1/papers/{paper_id}", json={"title": "Updated Title"}
-        )
+        response = await client.put(f"/api/v1/papers/{paper_id}", json={"title": "Updated Title"})
 
         assert response.status_code == 200
         assert response.json()["data"]["title"] == "Updated Title"
@@ -117,9 +140,7 @@ class TestTagEndpoints:
         create_resp = await client.post("/api/v1/papers", json=data)
         paper_id = create_resp.json()["data"]["id"]
 
-        await client.post(
-            f"/api/v1/papers/{paper_id}/tags", json={"tags": ["endpoint-test-tag"]}
-        )
+        await client.post(f"/api/v1/papers/{paper_id}/tags", json={"tags": ["endpoint-test-tag"]})
 
         response = await client.get("/api/v1/tags")
         assert response.status_code == 200
@@ -219,9 +240,7 @@ class TestIdPrefixResolution:
         assert any(pid.startswith(prefix) for pid in ids)
 
     async def test_id_prefix_no_match_returns_empty(self, client: AsyncClient):
-        response = await client.get(
-            "/api/v1/papers", params={"id_prefix": "00000000"}
-        )
+        response = await client.get("/api/v1/papers", params={"id_prefix": "00000000"})
 
         assert response.status_code == 200
         body = response.json()
@@ -232,3 +251,33 @@ class TestIdPrefixResolution:
         response = await client.get("/api/v1/papers", params={"id_prefix": "abc"})
 
         assert response.status_code == 422
+
+
+class TestFetchFromPubMed:
+    @respx.mock
+    async def test_fetch_creates_paper(self, client: AsyncClient):
+        pmid = str(uuid.uuid4().int)[:8]
+        respx.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi").mock(
+            return_value=Response(200, text=_pubmed_xml(pmid))
+        )
+
+        response = await client.post(f"/api/v1/papers/fetch/{pmid}")
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["pmid"] == pmid
+        assert body["data"]["title"] == "Fetched Paper Title"
+
+    @respx.mock
+    async def test_fetch_duplicate_returns_409(self, client: AsyncClient):
+        pmid = str(uuid.uuid4().int)[:8]
+        respx.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi").mock(
+            return_value=Response(200, text=_pubmed_xml(pmid))
+        )
+
+        await client.post(f"/api/v1/papers/fetch/{pmid}")
+        response = await client.post(f"/api/v1/papers/fetch/{pmid}")
+
+        assert response.status_code == 409
+        assert response.json()["success"] is False

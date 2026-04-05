@@ -195,9 +195,7 @@ class TestEmbedPaper:
         paper = _make_mock_paper(abstract="Some abstract text")
         paper_repo.create.return_value = paper
 
-        data = PaperCreate(
-            pmid="12345678", title="Test", authors=[], abstract="Some abstract text"
-        )
+        data = PaperCreate(pmid="12345678", title="Test", authors=[], abstract="Some abstract text")
         result = await service.create_paper(None, data)
 
         assert result.pmid == "12345678"
@@ -226,9 +224,7 @@ class TestEmbedPaper:
         paper = _make_mock_paper(abstract="Some abstract")
         paper_repo.create.return_value = paper
 
-        data = PaperCreate(
-            pmid="12345678", title="Test", authors=[], abstract="Some abstract"
-        )
+        data = PaperCreate(pmid="12345678", title="Test", authors=[], abstract="Some abstract")
         session = AsyncMock()
         result = await service_with_embedder.create_paper(session, data)
 
@@ -236,9 +232,7 @@ class TestEmbedPaper:
 
 
 class TestEmbedAll:
-    async def test_embed_all_with_papers(
-        self, service_with_embedder, paper_repo, embedder
-    ):
+    async def test_embed_all_with_papers(self, service_with_embedder, paper_repo, embedder):
         papers = [
             _make_mock_paper(pmid="111", abstract="Abstract one"),
             _make_mock_paper(pmid="222", abstract="Abstract two"),
@@ -253,9 +247,7 @@ class TestEmbedAll:
         count = await service_with_embedder.embed_all(session)
 
         assert count == 2
-        embedder.embed_batch.assert_called_once_with(
-            ["Abstract one", "Abstract two"]
-        )
+        embedder.embed_batch.assert_called_once_with(["Abstract one", "Abstract two"])
 
     async def test_embed_all_processes_in_batches(
         self, service_with_embedder, paper_repo, embedder
@@ -274,9 +266,7 @@ class TestEmbedAll:
         assert count == 2
         assert embedder.embed_batch.call_count == 2
 
-    async def test_embed_all_no_papers(
-        self, service_with_embedder, paper_repo, embedder
-    ):
+    async def test_embed_all_no_papers(self, service_with_embedder, paper_repo, embedder):
         paper_repo.find_unembedded.return_value = []
 
         session = AsyncMock()
@@ -340,9 +330,7 @@ class TestAsk:
         with pytest.raises(RagUnavailableError):
             await service.ask(None, "What is gene therapy?")
 
-    async def test_ask_raises_without_llm_client(
-        self, service_with_embedder
-    ):
+    async def test_ask_raises_without_llm_client(self, service_with_embedder):
         with pytest.raises(RagUnavailableError):
             await service_with_embedder.ask(None, "What is gene therapy?")
 
@@ -389,9 +377,7 @@ class TestAsk:
         assert result.citations == []
         llm_client.generate.assert_called_once()
 
-    async def test_ask_includes_timing(
-        self, service_with_rag, paper_repo, embedder, llm_client
-    ):
+    async def test_ask_includes_timing(self, service_with_rag, paper_repo, embedder, llm_client):
         paper_repo.search_semantic.return_value = []
 
         session = AsyncMock()

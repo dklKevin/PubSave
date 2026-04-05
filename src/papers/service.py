@@ -122,9 +122,7 @@ class PaperService:
         query_embedding = await self._embedder.embed(query)
         return await self._paper_repo.search_semantic(session, query_embedding, limit)
 
-    async def ask(
-        self, session: AsyncSession, question: str, top_k: int = 5
-    ) -> AskResponse:
+    async def ask(self, session: AsyncSession, question: str, top_k: int = 5) -> AskResponse:
         """Retrieve relevant papers and generate an answer using the LLM.
 
         The system prompt lives here (not in the LLM client) because prompt
@@ -141,15 +139,15 @@ class PaperService:
         context_parts = []
         citations = []
         for paper, score in results:
-            context_parts.append(
-                f"[PMID:{paper.pmid}] {paper.title}\n{paper.abstract or ''}"
+            context_parts.append(f"[PMID:{paper.pmid}] {paper.title}\n{paper.abstract or ''}")
+            citations.append(
+                Citation(
+                    paper_id=paper.id,
+                    pmid=paper.pmid,
+                    title=paper.title,
+                    score=round(score, 4),
+                )
             )
-            citations.append(Citation(
-                paper_id=paper.id,
-                pmid=paper.pmid,
-                title=paper.title,
-                score=round(score, 4),
-            ))
 
         user_message = f"Question: {question}\n\nPapers:\n" + "\n\n".join(context_parts)
         answer = await self._llm_client.generate(system=RAG_SYSTEM_PROMPT, user=user_message)
@@ -174,9 +172,7 @@ class PaperService:
     ) -> tuple[list[Paper], int]:
         return await self._paper_repo.find_all(session, page=page, limit=limit, id_prefix=id_prefix)
 
-    async def update_paper(
-        self, session: AsyncSession, paper_id: UUID, data: PaperUpdate
-    ) -> Paper:
+    async def update_paper(self, session: AsyncSession, paper_id: UUID, data: PaperUpdate) -> Paper:
         return await self._paper_repo.update(session, paper_id, data)
 
     async def delete_paper(self, session: AsyncSession, paper_id: UUID) -> None:
@@ -187,14 +183,10 @@ class PaperService:
     ) -> tuple[list[Paper], int]:
         return await self._paper_repo.search(session, params)
 
-    async def add_tags(
-        self, session: AsyncSession, paper_id: UUID, tag_names: list[str]
-    ) -> Paper:
+    async def add_tags(self, session: AsyncSession, paper_id: UUID, tag_names: list[str]) -> Paper:
         return await self._tag_repo.add_tags(session, paper_id, tag_names)
 
-    async def remove_tag(
-        self, session: AsyncSession, paper_id: UUID, tag_name: str
-    ) -> Paper:
+    async def remove_tag(self, session: AsyncSession, paper_id: UUID, tag_name: str) -> Paper:
         return await self._tag_repo.remove_tag(session, paper_id, tag_name)
 
     async def list_tags(
