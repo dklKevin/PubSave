@@ -180,16 +180,16 @@ src/
 - **System prompt in service** -- LLM client is pure transport, prompt logic is business logic
 - **Router-level 503 guards** -- check happens in the router, not the service layer
 
-See `docs/adr-001-rag-design.md` for detailed rationale on cosine similarity, whole-abstract embedding, and HNSW indexing.
+See `docs/adr/001-rag-design.md` for detailed rationale on cosine similarity, whole-abstract embedding, and HNSW indexing.
 
 ## Testing
 
-177 tests across two layers, 88% code coverage:
+224 tests across two layers, 96% code coverage:
 
 | Layer | Tests | What's covered |
 |-------|------:|----------------|
-| Unit | 126 | Schema validation, service logic, PubMed XML parsing, CLI commands (mocked httpx), embedder/LLM protocols, RAG prompt construction |
-| Integration | 51 | Repository queries, API endpoints, tag operations, ID prefix resolution, health check, 503 paths, full CRUD lifecycle (real Postgres via pgvector) |
+| Unit | 157 | Schema validation, service logic, PubMed XML parsing, CLI commands (mocked httpx), embedder/LLM protocols, RAG prompt construction, logging config |
+| Integration | 67 | Repository queries, API endpoints, PubMed fetch, semantic search, tag operations, ID prefix resolution, health check, error handlers, full CRUD lifecycle (real Postgres via pgvector) |
 
 Integration tests run against a real PostgreSQL+pgvector instance via [testcontainers](https://testcontainers-python.readthedocs.io/) -- no SQLite mocks.
 

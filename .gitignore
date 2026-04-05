@@ -21,3 +21,6 @@ htmlcov/
 .claude/
 CLAUDE.md
 demo/
+prompt_plan.md
+uv.lock
+coverage.xml
