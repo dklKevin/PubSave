@@ -42,4 +42,4 @@ def extract_tag_names(v: list) -> list[str]:
         return [t.name for t in v]
     if isinstance(first, dict) and "name" in first:
         return [t["name"] for t in v]
-    return v
+    raise TypeError(f"Cannot extract tag names from {type(first).__name__}")

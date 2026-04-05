@@ -121,6 +121,14 @@ class TestTagRequest:
         with pytest.raises(ValidationError):
             TagRequest(tags=["a" * 101])
 
+    def test_duplicate_tags_are_deduplicated(self):
+        req = TagRequest(tags=["ml", "ML", "ml"])
+        assert req.tags == ["ml"]
+
+    def test_duplicate_tags_mixed_whitespace(self):
+        req = TagRequest(tags=["  ml ", "ML", " Ml"])
+        assert req.tags == ["ml"]
+
 
 class TestPaperSearchParams:
     def test_defaults(self):

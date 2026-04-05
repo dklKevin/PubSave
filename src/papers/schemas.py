@@ -50,7 +50,14 @@ class _TimestampMixin(BaseModel):
         return str(v)
 
 
-class PaperResponse(_TimestampMixin):
+class _TagMixin(BaseModel):
+    @field_validator("tags", mode="before", check_fields=False)
+    @classmethod
+    def extract_tag_names(cls, v: list) -> list[str]:
+        return extract_tag_names(v)
+
+
+class PaperResponse(_TimestampMixin, _TagMixin):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: UUID
@@ -65,13 +72,8 @@ class PaperResponse(_TimestampMixin):
     created_at: str
     updated_at: str
 
-    @field_validator("tags", mode="before")
-    @classmethod
-    def extract_tag_names(cls, v: list) -> list[str]:
-        return extract_tag_names(v)
 
-
-class PaperCompactResponse(BaseModel):
+class PaperCompactResponse(_TagMixin):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: UUID
@@ -107,11 +109,6 @@ class PaperCompactResponse(BaseModel):
             return v[:117] + "..."
         return v
 
-    @field_validator("tags", mode="before")
-    @classmethod
-    def extract_tag_names(cls, v: list) -> list[str]:
-        return extract_tag_names(v)
-
 
 class TagResponse(_TimestampMixin):
     model_config = ConfigDict(frozen=True, from_attributes=True)
@@ -135,7 +132,7 @@ class TagRequest(BaseModel):
                 raise ValueError("Tag name cannot be blank")
             if len(tag) > 100:
                 raise ValueError("Tag name must be 100 characters or fewer")
-        return normalized
+        return list(dict.fromkeys(normalized))
 
 
 class PaperSearchParams(BaseModel):

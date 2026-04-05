@@ -63,8 +63,9 @@ pubsave tag a1b2c3 genetics to-read
 # Remove a tag
 pubsave untag a1b2c3 to-read
 
-# Delete a paper (with confirmation)
+# Delete a paper (with confirmation, or --force to skip)
 pubsave rm a1b2c3
+pubsave rm --force a1b2c3
 
 # Backfill embeddings for papers saved before RAG was enabled
 pubsave embed-all
@@ -83,6 +84,8 @@ pubsave tags
 | `--limit N` | Results per page |
 | `--semantic` | Use semantic search instead of keyword search |
 | `--top-k N` | Number of papers to use for ask/semantic (default 5) |
+| `--force` / `-f` | Skip confirmation on `rm` |
+| `--version` | Show version and exit |
 
 Short IDs work everywhere. Type the first 6+ characters of any paper's UUID instead of the full thing.
 
@@ -152,6 +155,7 @@ src/
 └── papers/
     ├── models.py        # SQLAlchemy ORM models (Paper, Tag, embedding column)
     ├── schemas.py       # Pydantic validation schemas
+    ├── formatters.py    # Formatting helpers (author display, tag extraction)
     ├── repository.py    # Database queries (repository pattern)
     ├── service.py       # Business logic layer (embedding, RAG prompt)
     ├── router.py        # Paper CRUD + semantic search endpoints
