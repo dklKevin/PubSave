@@ -293,7 +293,7 @@ def cmd_ask(args, client: httpx.Client, base: str) -> None:
 
 def cmd_embed_all(args, client: httpx.Client, base: str) -> None:
     print(f"  {DIM}Embedding papers without vectors...{RESET}")
-    resp = client.post(f"{base}/api/v1/papers/embed", timeout=_EMBED_TIMEOUT)
+    resp = client.post(f"{base}/api/v1/papers/embed-all", timeout=_EMBED_TIMEOUT)
     _handle_error(resp)
     body = resp.json()
     count = body.get("data", {}).get("embedded", 0)

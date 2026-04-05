@@ -107,7 +107,7 @@ The CLI wraps these REST endpoints. You can also call them directly with curl or
 | `DELETE` | `/api/v1/papers/{id}` | Remove a paper |
 | `POST` | `/api/v1/papers/{id}/tags` | Add tags to a paper |
 | `DELETE` | `/api/v1/papers/{id}/tags/{name}` | Remove a tag from a paper |
-| `POST` | `/api/v1/papers/embed` | Backfill embeddings for unembedded papers |
+| `POST` | `/api/v1/papers/embed-all` | Backfill embeddings for unembedded papers |
 | `POST` | `/api/v1/ask` | Ask a question, get an answer with PMID citations |
 | `GET` | `/api/v1/tags` | List all tags (paginated) |
 | `GET` | `/health` | Health check (API + database) |

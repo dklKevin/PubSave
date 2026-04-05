@@ -46,7 +46,7 @@ class TestAsk503:
 
 class TestEmbedAllEndpoint:
     async def test_embed_all_returns_zero_without_embedder(self, client: AsyncClient):
-        resp = await client.post("/api/v1/papers/embed")
+        resp = await client.post("/api/v1/papers/embed-all")
         assert resp.status_code == 200
         body = resp.json()
         assert body["success"] is True
@@ -189,6 +189,6 @@ class TestErrorHandlerPaths:
         assert resp.json()["meta"]["limit"] == 5
 
     async def test_embed_endpoint_position(self, client: AsyncClient):
-        """POST /embed must not be captured by /{paper_id} route."""
-        resp = await client.post("/api/v1/papers/embed")
+        """POST /embed-all must not be captured by /{paper_id} route."""
+        resp = await client.post("/api/v1/papers/embed-all")
         assert resp.status_code == 200

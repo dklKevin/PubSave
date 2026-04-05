@@ -92,7 +92,7 @@ async def semantic_search(
     return ApiResponse(success=True, data=data)
 
 
-@router.post("/embed", status_code=200)
+@router.post("/embed-all", status_code=200)
 async def embed_all_papers(
     session: AsyncSession = Depends(get_session),
     service: PaperService = Depends(get_paper_service),
