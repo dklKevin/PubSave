@@ -52,10 +52,13 @@ pubsave search -a Zhang
 pubsave search -t genetics
 
 # Semantic search (finds papers by meaning, not just keywords)
+# Use --limit to cap results (default 20); --top-k is ask-only
 pubsave search --semantic "gene therapy for rare diseases"
+pubsave search --semantic --limit 10 "gene therapy for rare diseases"
 
 # Ask a question over your saved papers
 pubsave ask "What are the main findings on CRISPR delivery methods?"
+pubsave ask --top-k 5 "What are the main findings on CRISPR delivery methods?"
 
 # Tag a paper
 pubsave tag a1b2c3 genetics to-read
@@ -76,16 +79,23 @@ pubsave tags
 
 ### CLI options
 
+Global flags belong on the root parser (`pubsave --json ls`, `pubsave --version`):
+
 | Flag | Description |
 |------|-------------|
 | `--json` | Raw JSON output |
-| `--full` | Full details (skip compact mode) |
-| `--page N` | Pagination page |
-| `--limit N` | Results per page |
-| `--semantic` | Use semantic search instead of keyword search |
-| `--top-k N` | Number of papers to use for ask/semantic (default 5) |
-| `--force` / `-f` | Skip confirmation on `rm` |
 | `--version` | Show version and exit |
+
+Per-command flags:
+
+| Flag | Commands | Description |
+|------|----------|-------------|
+| `--full` | `ls`, `search` | Full details (skip compact mode) |
+| `--page N` | `ls`, `search`, `tags` | Pagination page (default 1) |
+| `--limit N` | `ls`, `search`, `tags` | Result count (default 20). Keyword `search`, `ls`, and `tags` use this as page size; semantic search uses it as the number of matches to return. |
+| `--semantic` / `-s` | `search` | Use semantic search instead of keyword search |
+| `--top-k N` | `ask` | Number of papers to retrieve as context (default 5) |
+| `--force` / `-f` | `rm` | Skip confirmation |
 
 Short IDs work everywhere. Type the first 6+ characters of any paper's UUID instead of the full thing.
 
