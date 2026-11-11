@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ COPY src/ src/
 
 RUN pip install --no-cache-dir .
 
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
